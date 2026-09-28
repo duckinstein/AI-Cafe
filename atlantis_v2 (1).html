@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Atlantis: two minds, one world</title>
+<style>
+:root{--bg:#0e141b;--pn:rgba(18,26,35,.94);--ln:#2a3846;--tx:#d8e0e8;--mu:#7d8b98;--st:#63c7e6;--wd:#f0906a;--ok:#7fd68a}
+*{box-sizing:border-box;margin:0}html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--tx);font:13px/1.45 system-ui,Segoe UI,sans-serif}
+canvas{display:block}.pn{position:absolute;background:var(--pn);border:1px solid var(--ln);border-radius:8px}
+button{font:inherit;font-weight:600;padding:5px 11px;border-radius:6px;border:1px solid var(--ln);background:#1d2a37;color:var(--tx);cursor:pointer}
+button:hover{background:#26384a}button.go{background:#2a7d4f;border-color:#3a9a63}
+input,textarea{font:12px ui-monospace,Consolas,monospace;width:100%;padding:6px;background:#0b1118;color:#9be0a8;border:1px solid var(--ln);border-radius:5px}
+#top{top:8px;left:50%;transform:translateX(-50%);display:flex;gap:8px;align-items:center;padding:6px 10px;z-index:5;white-space:nowrap}
+.pill{padding:2px 9px;border-radius:99px;border:1px solid;cursor:pointer;font-size:12px}.pill.st{color:var(--st)}.pill.wd{color:var(--wd)}.pill.bad{background:#5a1f1f;color:#ffb4b4}
+.mu{color:var(--mu);font-size:11px}
+.side{top:52px;bottom:150px;left:8px;width:330px;display:flex;flex-direction:column;z-index:4}.side.r{left:auto;right:8px}
+.side h4{padding:7px 10px;border-bottom:1px solid var(--ln);font-size:13px}#Ls h4{color:var(--st)}#Lo h4{color:var(--wd)}
+.log{flex:1;overflow-y:auto;padding:6px 8px;font-size:12px;display:flex;flex-direction:column;gap:5px}
+.e{padding-left:7px;border-left:2px solid var(--mu);white-space:pre-wrap;word-break:break-word}.e.steve{border-color:var(--st)}.e.opp{border-color:var(--wd)}.e.sys{color:#c6a8ff;border-color:#a371f7}.e.act{color:var(--mu)}
+#hud{bottom:8px;left:8px;right:8px;height:134px;padding:10px 14px;display:grid;grid-template-columns:230px 1fr 260px;gap:16px;z-index:4}
+.bar{height:10px;background:#0b1118;border-radius:5px;overflow:hidden;margin:3px 0 8px}.bar i{display:block;height:100%}
+#clue{font-family:Georgia,serif;font-size:15px;font-style:italic;line-height:1.5;overflow-y:auto}
+#inv span{display:inline-block;margin:0 5px 5px 0;padding:1px 8px;background:#1d2a37;border-radius:4px}
+#modal{display:none;position:absolute;inset:0;background:rgba(0,0,0,.8);z-index:50;align-items:center;justify-content:center}
+.box{width:min(760px,94vw);background:#141d27;border:1px solid var(--ln);border-radius:10px;padding:18px}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:12px 0}.cols h5{margin-bottom:6px;font-size:13px}.cols label{display:block;margin:6px 0 3px;color:var(--mu);font-size:11px}
+#mMsg{color:#ffb4b4;white-space:pre-wrap}.res{margin-top:6px;font-size:11px;min-height:15px;word-break:break-word}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script></head>
+<body>
+<div id="top" class="pn"><b>Atlantis</b><button id="bStart" class="go">Start game</button><button id="bPause" hidden>Pause</button><button id="bSet">Keys &amp; models</button>
+<span class="pill st" id="pSteve">Steve: idle</span><span class="pill wd" id="pOpp">World AI: idle</span><span class="mu">V first-person · drag orbit · wheel zoom</span></div>
+<div id="Ls" class="pn side"><h4>Steve's mind</h4><div class="log" id="log-steve"></div></div>
+<div id="Lo" class="pn side r"><h4>World AI's mind</h4><div class="log" id="log-opp"></div></div>
+<div id="hud" class="pn"><div>Health <b id="hHp"></b><div class="bar"><i id="bHp" style="background:#e5484d"></i></div>Hunger <b id="hHu"></b><div class="bar"><i id="bHu" style="background:#e8a23b"></i></div><span class="mu" id="hPos"></span></div>
+<div><div class="mu" id="hCp">Checkpoint 0</div><div id="clue">Press Start. The World AI will build the first checkpoint.</div></div>
+<div><div class="mu">Inventory</div><div id="inv"></div><div class="mu" id="hDeaths"></div></div></div>
+<div id="modal"><div class="box"><h3>Keys and models</h3><div id="mMsg"></div>
+<div class="cols"><div><h5 style="color:var(--st)">Steve</h5><label>API keys (one per line; the next is used when one fails)</label><textarea id="kS" rows="4"></textarea><label>Model name</label><input id="mS"><button id="tS" style="margin-top:8px">Test</button><div class="res" id="rS"></div></div>
+<div><h5 style="color:var(--wd)">World AI</h5><label>API keys (one per line; the next is used when one fails)</label><textarea id="kO" rows="4"></textarea><label>Model name</label><input id="mO"><button id="tO" style="margin-top:8px">Test</button><div class="res" id="rO"></div></div></div>
+<div style="display:flex;gap:8px;justify-content:flex-end"><button id="mClose">Close</button><button id="mSave" class="go">Save and resume</button></div></div></div>
+<script>
+const $=id=>document.getElementById(id),sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const S={run:false,paused:false,id:0,MAX:5,cp:null,deaths:[],hist:[],mem:[],events:[],halt:{steve:null,opp:null},busy:{steve:false,opp:false},job:null,save:null,t0:0,panel:false};
+const cfg=Object.assign({steve:{keys:'',model:'gemini-2.5-flash'},opp:{keys:'',model:'gemini-2.5-flash'}},JSON.parse(localStorage.getItem('atl2')||'{}'));
+const idx={steve:0,opp:0},keysOf=a=>cfg[a].keys.split(/[\s,]+/).filter(Boolean);
+function log(w,m,c){const b=$('log-'+w),e=document.createElement('div');e.className='e '+(c||w);e.textContent=new Date().toLocaleTimeString([],{hour12:false})+'  '+m;b.appendChild(e);while(b.children.length>400)b.firstChild.remove();b.scrollTop=b.scrollHeight}
+function pill(a,t,bad){const e=$(a==='steve'?'pSteve':'pOpp');e.textContent=(a==='steve'?'Steve: ':'World AI: ')+t;e.classList.toggle('bad',!!bad)}
+/* ---------- Gemini calls: per-agent keys, failover, bounded retries ---------- */
+class Fatal extends Error{}
+async function gem(a,sys,usr){
+ const ks=keysOf(a),model=cfg[a].model.trim(),w=a==='steve'?'steve':'opp';
+ if(!ks.length)throw new Fatal('No API key entered for this agent.');if(!model)throw new Fatal('No model name entered.');
+ let last='';
+ for(let round=0;round<2;round++){
+  for(let i=0;i<ks.length;i++){const ki=(idx[a]+i)%ks.length,ac=new AbortController(),to=setTimeout(()=>ac.abort(),75000);
+   try{
+    const r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,{method:'POST',signal:ac.signal,headers:{'Content-Type':'application/json','x-goog-api-key':ks[ki]},
+     body:JSON.stringify({systemInstruction:{parts:[{text:sys}]},contents:[{role:'user',parts:[{text:usr}]}],generationConfig:{temperature:.8,responseMimeType:'application/json'}})});
+    clearTimeout(to);
+    if(r.ok){const j=await r.json(),t=(j.candidates?.[0]?.content?.parts||[]).filter(p=>!p.thought).map(p=>p.text||'').join(''),m=t.match(/\{[\s\S]*\}/);
+     if(!m)throw new Error('reply had no JSON ('+(j.candidates?.[0]?.finishReason||'empty')+')');const o=JSON.parse(m[0]);idx[a]=ki;return o}
+    const j=await r.json().catch(()=>({}));last=`HTTP ${r.status}: ${j.error?.message||r.statusText}`;
+    if(r.status===404)throw new Fatal(`Model "${model}" was not found. ${last}`);
+    log(w,`Key ${ki+1}/${ks.length} failed: ${last.slice(0,150)}`,'sys');
+    if(r.status===429&&ks.length===1){const d=+(/retry in ([\d.]+)s/i.exec(last)||[])[1]||8;await sleep(Math.min(d,30)*1000)}
+   }catch(e){clearTimeout(to);if(e instanceof Fatal)throw e;last=e.name==='AbortError'?'timed out':e.message;if(!/^HTTP/.test(last))log(w,`Key ${ki+1}/${ks.length} error: ${last.slice(0,150)}`,'sys')}}
+  if(!round)await sleep(3000)}
+ throw new Fatal(`All ${ks.length} key(s) failed twice. Last error: ${last}`)}
+function halt(a,msg){S.halt[a]=msg;pill(a,'halted',1);log(a==='steve'?'steve':'opp','Halted: '+msg,'sys');openPanel()}
+function openPanel(){$('kS').value=cfg.steve.keys;$('mS').value=cfg.steve.model;$('kO').value=cfg.opp.keys;$('mO').value=cfg.opp.model;
+ $('mMsg').textContent=[S.halt.steve&&'Steve: '+S.halt.steve,S.halt.opp&&'World AI: '+S.halt.opp].filter(Boolean).join('\n');$('modal').style.display='flex';S.panel=true}
+function readPanel(){cfg.steve={keys:$('kS').value,model:$('mS').value};cfg.opp={keys:$('kO').value,model:$('mO').value}}
+$('mSave').onclick=()=>{readPanel();localStorage.setItem('atl2',JSON.stringify(cfg));S.halt={steve:null,opp:null};$('modal').style.display='none';S.panel=false;pill('steve','ready');pill('opp','ready')};
+$('mClose').onclick=()=>{$('modal').style.display='none';S.panel=false};$('bSet').onclick=openPanel;$('pSteve').onclick=$('pOpp').onclick=openPanel;
+for(const [b,a,r] of [['tS','steve','rS'],['tO','opp','rO']])$(b).onclick=async()=>{readPanel();$(r).textContent='Testing...';try{const o=await gem(a,'Reply with JSON only.','Reply with {"ok":true}');$(r).style.color='#7fd68a';$(r).textContent='Works: '+JSON.stringify(o)}catch(e){$(r).style.color='#ffb4b4';$(r).textContent=e.message}};
+/* ---------- Voxel world: 1000x1000, chunked, face-culled meshes ---------- */
+const SEA=9,H=48,CS=16,WMIN=-500,WMAX=499,RD=5,chunks=new Map(),meshes=new Map(),dirty=new Set(),ck=(a,b)=>(a+64)*128+b+64;
+const hash=(x,z,s=0)=>{const n=Math.sin(x*127.1+z*311.7+s*74.7)*43758.5453;return n-Math.floor(n)};
+function vn(x,z){const xi=Math.floor(x),zi=Math.floor(z),fx=x-xi,fz=z-zi,u=fx*fx*(3-2*fx),v=fz*fz*(3-2*fz),a=hash(xi,zi),b=hash(xi+1,zi),c=hash(xi,zi+1),d=hash(xi+1,zi+1);return a+(b-a)*u+(c-a)*v+(a-b-c+d)*u*v}
+const terrainH=(x,z)=>Math.floor(3+Math.pow(vn(x/70,z/70)*.6+vn(x/28,z/28)*.3+vn(x/11,z/11)*.1,1.3)*24);
+// ids: 1 grass 2 dirt 3 stone 4 sand 5 water 6 snow 7 log 8 leaves 9 planks 10 brick 11 obsidian 12 hidden trapdoor 13 spikes 14 pressure plate
+const COL=[0,[.36,.62,.27],[.45,.32,.2],[.5,.5,.52],[.85,.8,.55],[.2,.42,.78],[.94,.96,.98],[.4,.28,.15],[.2,.5,.2],[.7,.55,.32],[.6,.35,.3],[.13,.09,.2],[.4,.66,.3],[.3,.3,.33],[.42,.31,.2]];
+const solid=b=>b!==0&&b!==5,opaque=b=>b!==0&&b!==5&&b!==8;
+function gen(cx,cz){const d=new Uint8Array(CS*H*CS),c={d,cx,cz,top:SEA};chunks.set(ck(cx,cz),c);
+ for(let x=0;x<CS;x++)for(let z=0;z<CS;z++){const wx=cx*CS+x,wz=cz*CS+z,h=Math.min(H-10,terrainH(wx,wz));c.top=Math.max(c.top,h+8);
+  for(let y=0;y<=Math.max(h,SEA);y++)d[(y*CS+z)*CS+x]=y>h?5:y===h?(h<=SEA+1?4:h>=22?6:1):y>=h-3?(h<=SEA+1?4:2):3;
+  if(h>SEA+1&&h<22&&x>2&&x<13&&z>2&&z<13&&hash(wx,wz,9)>.985){const t=4+Math.floor(hash(wx,wz,3)*2);
+   for(let y=1;y<=t;y++)d[((h+y)*CS+z)*CS+x]=7;
+   for(let a=-2;a<=2;a++)for(let b=-2;b<=2;b++)for(let e=t-1;e<=t+1;e++){const i=((h+e)*CS+z+b)*CS+x+a;if(Math.abs(a)+Math.abs(b)+Math.abs(e-t)<4&&!d[i])d[i]=8}}}
+ return c}
+function getB(x,y,z){x=Math.floor(x);y=Math.floor(y);z=Math.floor(z);if(x<WMIN||x>WMAX||z<WMIN||z>WMAX||y<0)return 3;if(y>=H)return 0;const cx=x>>4,cz=z>>4,c=chunks.get(ck(cx,cz))||gen(cx,cz);return c.d[(y*CS+(z&15))*CS+(x&15)]}
+function setB(x,y,z,b){x=Math.floor(x);y=Math.floor(y);z=Math.floor(z);if(x<WMIN||x>WMAX||z<WMIN||z>WMAX||y<0||y>=H)return;const cx=x>>4,cz=z>>4,c=chunks.get(ck(cx,cz))||gen(cx,cz);c.d[(y*CS+(z&15))*CS+(x&15)]=b;c.top=Math.max(c.top,y);dirty.add(ck(cx,cz));
+ if((x&15)===0)dirty.add(ck(cx-1,cz));if((x&15)===15)dirty.add(ck(cx+1,cz));if((z&15)===0)dirty.add(ck(cx,cz-1));if((z&15)===15)dirty.add(ck(cx,cz+1))}
+const groundY=(x,z)=>{for(let y=H-1;y>=0;y--){const b=getB(x,y,z);if(b&&b!==5&&b!==7&&b!==8)return y+1}return 1};
+const isLand=(x,z)=>groundY(x,z)>SEA+1;
+const FC=[[1,0,0,.8,[[1,0,0],[1,1,0],[1,1,1],[1,0,1]]],[-1,0,0,.7,[[0,0,1],[0,1,1],[0,1,0],[0,0,0]]],[0,1,0,1,[[0,1,1],[1,1,1],[1,1,0],[0,1,0]]],[0,-1,0,.5,[[0,0,0],[1,0,0],[1,0,1],[0,0,1]]],[0,0,1,.9,[[1,0,1],[1,1,1],[0,1,1],[0,0,1]]],[0,0,-1,.75,[[0,0,0],[0,1,0],[1,1,0],[1,0,0]]]];
+const scene=new THREE.Scene(),camera=new THREE.PerspectiveCamera(70,innerWidth/innerHeight,.1,220),rn=new THREE.WebGLRenderer({antialias:true});
+rn.setSize(innerWidth,innerHeight);rn.setPixelRatio(Math.min(devicePixelRatio,1.5));document.body.prepend(rn.domElement);
+scene.background=new THREE.Color(0x8fc9f0);scene.fog=new THREE.Fog(0x8fc9f0,50,105);
+const MAT=new THREE.MeshBasicMaterial({vertexColors:true,side:THREE.DoubleSide});
+function build(c,k){const old=meshes.get(k);if(old){scene.remove(old.m);old.m.geometry.dispose()}dirty.delete(k);const Pp=[],Cc=[],I=[],ox=c.cx*CS,oz=c.cz*CS;
+ for(let y=0;y<=Math.min(H-1,c.top+1);y++)for(let z=0;z<CS;z++)for(let x=0;x<CS;x++){const b=c.d[(y*CS+z)*CS+x];if(!b)continue;const k2=COL[b],j=.92+hash(ox+x+y*7,oz+z,1)*.16;
+  for(const[fx,fy,fz,sh,vs]of FC){const n=getB(ox+x+fx,y+fy,oz+z+fz);if(b===5?n!==0:opaque(n))continue;const vi=Pp.length/3;
+   for(const v of vs){Pp.push(ox+x+v[0],y+v[1]-(b===5&&v[1]?.12:0),oz+z+v[2]);Cc.push(k2[0]*sh*j,k2[1]*sh*j,k2[2]*sh*j)}I.push(vi,vi+1,vi+2,vi,vi+2,vi+3)}}
+ const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.BufferAttribute(new Float32Array(Pp),3));g.setAttribute('color',new THREE.BufferAttribute(new Float32Array(Cc),3));g.setIndex(I);
+ const m=new THREE.Mesh(g,MAT);m.frustumCulled=false;scene.add(m);meshes.set(k,{m,cx:c.cx,cz:c.cz})}
+const OFF=[];for(let a=-RD;a<=RD;a++)for(let b=-RD;b<=RD;b++)if(a*a+b*b<=RD*RD+1)OFF.push([a,b]);OFF.sort((p,q)=>p[0]*p[0]+p[1]*p[1]-q[0]*q[0]-q[1]*q[1]);let sc=0;
+function stream(){const pcx=Math.floor(P.x/16),pcz=Math.floor(P.z/16);let n=0;
+ for(const[a,b]of OFF){const cx=pcx+a,cz=pcz+b;if(cx<-32||cx>31||cz<-32||cz>31)continue;const k=ck(cx,cz);if(meshes.has(k)&&!dirty.has(k))continue;if(n++>=2)break;build(chunks.get(k)||gen(cx,cz),k)}
+ if(++sc%40===0)for(const[k,m]of meshes)if(Math.abs(m.cx-pcx)>RD+2||Math.abs(m.cz-pcz)>RD+2){scene.remove(m.m);m.m.geometry.dispose();meshes.delete(k)}}
+/* ---------- Steve: body, inventory, physics ---------- */
+const P={x:0,y:30,z:0,vx:0,vy:0,vz:0,yaw:0,hp:100,hu:100,inv:{bread:3},ground:false,peak:30,water:false,bx:false,bz:false,walk:0,swing:0,spike:0};
+const bx=(g,w,h,d,c,x,y,z)=>{const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),new THREE.MeshBasicMaterial({color:c}));m.position.set(x,y+h/2,z);g.add(m);return m};
+const sm=new THREE.Group();scene.add(sm);bx(sm,.5,.5,.5,0xcca078,0,1.3,0);bx(sm,.5,.14,.52,0x3b220e,0,1.68,0);bx(sm,.1,.08,.02,0x2544a5,-.12,1.5,.26);bx(sm,.1,.08,.02,0x2544a5,.12,1.5,.26);bx(sm,.5,.7,.26,0x00a8a8,0,.6,0);
+const limb=(x,y,c)=>{const g=new THREE.Group();bx(g,.24,.7,.24,c,0,-.7,0);g.position.set(x,y,0);sm.add(g);return g};
+const lA=limb(-.38,1.3,0x00a8a8),rA=limb(.38,1.3,0x00a8a8),lL=limb(-.13,.6,0x2b3da5),rL=limb(.13,.6,0x2b3da5);
+const pk=()=>P.inv.stone_pickaxe?2:P.inv.wood_pickaxe?1:0,sw=()=>P.inv.stone_sword?7:P.inv.wood_sword?5:2;
+const W=.3,HT=1.8;
+function hit(x,y,z){for(let a=Math.floor(x-W);a<=Math.floor(x+W);a++)for(let b=Math.floor(z-W);b<=Math.floor(z+W);b++)for(let c=Math.floor(y);c<=Math.floor(y+HT-.01);c++)if(solid(getB(a,c,b)))return true;return false}
+function hurt(n,cause){P.hp-=n;S.events.push(`-${Math.round(n)} HP (${cause})`);if(P.hp<=0)die(cause)}
+function phys(dt){P.bx=P.bz=false;P.water=getB(P.x,P.y+.5,P.z)===5;P.vy-=(P.water?7:26)*dt;if(P.water)P.vy=Math.max(P.vy,-3);
+ let n=P.x+P.vx*dt;if(!hit(n,P.y,P.z))P.x=n;else if(P.vx)P.bx=true;n=P.z+P.vz*dt;if(!hit(P.x,P.y,n))P.z=n;else if(P.vz)P.bz=true;
+ const ny=P.y+P.vy*dt;
+ if(!hit(P.x,ny,P.z)){P.y=ny;P.ground=false;P.peak=Math.max(P.peak,P.y);if(P.water)P.peak=P.y}
+ else{if(P.vy<0){P.y=Math.floor(ny)+1;P.ground=true;const f=P.peak-P.y;P.peak=P.y;if(f>3.2)hurt((f-3)*2,'fall from '+Math.round(f)+' blocks')}else P.y=Math.ceil(ny+HT)-HT-.001;P.vy=0}
+ P.x=Math.max(WMIN+1,Math.min(WMAX-1,P.x));P.z=Math.max(WMIN+1,Math.min(WMAX-1,P.z));
+ if(P.ground){const b=getB(P.x,P.y-.2,P.z);
+  if(b===12){for(let a=-2;a<=2;a++)for(let c=-2;c<=2;c++)if(getB(P.x+a,P.y-1,P.z+c)===12)setB(P.x+a,P.y-1,P.z+c,0);S.events.push('The ground gave way beneath you (hidden trapdoor)')}
+  if(b===14){setB(P.x,P.y-1,P.z,2);hurt(25,'hidden spike plate')}}
+ if(getB(P.x,P.y+.1,P.z)===13||getB(P.x,P.y-.2,P.z)===13){P.spike+=dt;if(P.spike>.7){P.spike=0;hurt(10,'impaled on pit spikes')}}else P.spike=0}
+/* ---------- Objects, structures, traps, guardians (built only by the engine, on the World AI's request) ---------- */
+const CAT={
+ fridge:['a tall white box taller than a person, with a big door and a faint cold mist around it',g=>{bx(g,.9,1.9,.8,0xeeeeee,0,0,0);bx(g,.06,.6,.06,0x888888,.36,.7,.42)}],
+ well:['a round low stone wall around a deep dark hole, with a rope and bucket hanging above',g=>{bx(g,1.4,.7,1.4,0x8a8a8a,0,0,0);bx(g,.9,.72,.9,0x101018,0,0,0);bx(g,.1,1.6,.1,0x5a3a1c,-.6,0,0);bx(g,1.3,.1,.1,0x5a3a1c,0,1.6,0)}],
+ campfire:['a ring of stones around blackened logs with glowing orange embers',g=>{bx(g,1.2,.25,1.2,0x777777,0,0,0);bx(g,.8,.3,.15,0x2b1a0c,0,.25,0);bx(g,.15,.3,.8,0x2b1a0c,0,.25,0);bx(g,.3,.3,.3,0xff8a1f,0,.3,0)}],
+ anvil:['a heavy black block with a flat top and a horn on one side',g=>{bx(g,.5,.5,.5,0x2a2a2e,0,0,0);bx(g,1,.3,.5,0x1c1c20,0,.5,0)}],
+ bookshelf:['a wooden frame packed with rows of thin colorful rectangles',g=>{bx(g,1.4,1.8,.4,0x7a5a2c,0,0,0);for(let i=0;i<5;i++)bx(g,1.2,.16,.42,[0xc44,0x48c,0x4a4,0xca4,0x84c][i],0,.15+i*.33,0)}],
+ statue:['a grey stone figure of a robed person with one arm pointing at the sky',g=>{bx(g,.8,.3,.8,0x888888,0,0,0);bx(g,.5,1.1,.4,0x9a9a9a,0,.3,0);bx(g,.3,.3,.3,0x9a9a9a,0,1.4,0);bx(g,.15,.7,.15,0x9a9a9a,.35,1.2,0)}],
+ bell:['a golden cup hanging upside down from a wooden frame',g=>{bx(g,.12,2,.12,0x5a3a1c,-.6,0,0);bx(g,.12,2,.12,0x5a3a1c,.6,0,0);bx(g,1.3,.12,.12,0x5a3a1c,0,1.9,0);bx(g,.5,.5,.5,0xe3b341,0,1.3,0)}],
+ obelisk:['a tall dark pointed pillar covered in carved spirals',g=>{bx(g,.7,2.6,.7,0x2b2b3a,0,0,0);bx(g,.4,.5,.4,0x2b2b3a,0,2.6,0)}],
+ treasure:['an ornate gold-and-turquoise chest that glows faintly blue',g=>{bx(g,1.2,.7,.8,0xd9a520,0,0,0);bx(g,1.25,.3,.85,0x2fc9c0,0,.7,0);bx(g,.2,.25,.1,0x60e0ff,0,.5,.42)}]};
+const objs=[],ents=[],sy=(o)=>o;
+function placeObj(type,x,z,extra){const y=groundY(x,z),g=new THREE.Group();CAT[type][1](g);g.position.set(x+.5,y,z+.5);scene.add(g);const o=Object.assign({type,x,z,y,g},extra);objs.push(o);return o}
+function struct(s,cx,cz){const y=groundY(cx,cz),r=5,F=s==='temple'?10:s==='hut'?9:3;
+ for(let a=-r;a<=r;a++)for(let b=-r;b<=r;b++){for(let h=y;h<y+9;h++)setB(cx+a,h,cz+b,0);for(let h=y-1;h>=y-3;h--)if(!solid(getB(cx+a,h,cz+b)))setB(cx+a,h,cz+b,3);setB(cx+a,y-1,cz+b,F)}
+ const put=(a,b,h0,h1,t)=>{for(let h=h0;h<=h1;h++)setB(cx+a,y+h,cz+b,t)};
+ for(let a=-4;a<=4;a++)for(let b=-4;b<=4;b++){const e=Math.max(Math.abs(a),Math.abs(b));
+  if(s==='ruin'&&e===3&&!(a===0&&b===3)&&hash(cx+a,cz+b,5)>.35)put(a,b,0,Math.floor(hash(cx+a,cz+b,6)*3),10);
+  if(s==='hut'){if(e===2&&!(a===0&&b===2))put(a,b,0,2,9);if(e<=2)put(a,b,3,3,9)}
+  if(s==='tower'&&e===2&&!(a===0&&b===2&&0))put(a,b,0,(a===0&&b===2)?-1:7,10);
+  if(s==='temple'){if(e===4)put(a,b,0,0,10);if(Math.abs(a)===3&&Math.abs(b)===3)put(a,b,0,4,10);if(e<=3)put(a,b,5,5,10)}
+  if(s==='camp'&&e===3&&(a+b)%2===0&&hash(a,b,8)>.4)put(a,b,0,0,9)}
+ if(s==='temple')setB(cx,y-1,cz,10)}
+const pits=[];
+function makePit(x,z){const y=groundY(x,z)-1;for(let a=-1;a<=1;a++)for(let b=-1;b<=1;b++){setB(x+a,y,z+b,12);for(let h=1;h<=6;h++)setB(x+a,y-h,z+b,0);setB(x+a,y-7,z+b,a||b?3:13)}}
+function spawnG(kind,x,z){const g=new THREE.Group(),c=kind==='golem'?0x555a66:0x8a1c1c,s=kind==='golem'?1.35:1;bx(g,.7*s,1*s,.4*s,c,0,.8*s,0);bx(g,.5*s,.5*s,.5*s,c,0,1.8*s,0);bx(g,.4*s,.1,.05,0xffd23f,0,2.05*s,.26*s);bx(g,.25*s,.8*s,.25*s,c,-.5*s,.9*s,0);bx(g,.25*s,.8*s,.25*s,c,.5*s,.9*s,0);bx(g,.3*s,.8*s,.3*s,c,-.2*s,0,0);bx(g,.3*s,.8*s,.3*s,c,.2*s,0,0);
+ scene.add(g);ents.push({kind,x:x+.5,z:z+.5,hx:x+.5,hz:z+.5,hp:kind==='golem'?60:30,cd:0,g})}
+/* ---------- Actions Steve can perform (his controller) ---------- */
+let act=null;const doAct=a=>new Promise(res=>{act={...a,res,t:0,p:0,st:0};beginAct(act)}),fin=m=>{const r=act.res;act=null;r(m)};
+const HD={1:.6,2:.5,3:3,4:.5,6:.4,7:1.5,8:.25,9:1.2,10:3.5,12:.5,13:1,14:.5},NM={1:'grass',2:'dirt',3:'stone',4:'sand',5:'water',6:'snow',7:'log',8:'leaves',9:'planks',10:'brick',11:'obsidian',12:'grass',13:'spikes',14:'dirt'};
+const fw=()=>[Math.sin(P.yaw),-Math.cos(P.yaw)],add=(k,n=1)=>P.inv[k]=(P.inv[k]||0)+n;
+function reach(at){const f=fw(),y=Math.floor(P.y);if(at==='DOWN')return[Math.floor(P.x),y-1,Math.floor(P.z)];if(at==='UP')return[Math.floor(P.x),y+2,Math.floor(P.z)];
+ for(const d of[1,1.9])for(const h of[1,0,2]){const x=Math.floor(P.x+f[0]*d),z=Math.floor(P.z+f[1]*d),b=getB(x,y+h,z);if(solid(b))return[x,y+h,z]}return null}
+const R={planks:[{wood:1},4],stick:[{planks:2},4],wood_pickaxe:[{planks:3,stick:2},1],stone_pickaxe:[{stone:3,stick:2},1],wood_sword:[{planks:2,stick:1},1],stone_sword:[{stone:2,stick:1},1]};
+function beginAct(a){const f=fw();switch(a.a){
+ case'MOVE':a.ang=P.yaw+({FORWARD:0,RIGHT:90,BACK:180,LEFT:270}[a.dir]||0)*Math.PI/180;a.rem=Math.max(1,Math.min(30,+a.blocks||5));a.px=P.x;a.pz=P.z;break;
+ case'TURN':P.yaw+=(+a.deg||0)*Math.PI/180;break;
+ case'FACE':P.yaw=Math.atan2(a.x-P.x,-(a.z-P.z));break;
+ case'JUMP':if(P.ground)P.vy=8.6;break;
+ case'MINE':{const t=reach(a.at);if(!t)return fin('nothing within reach to mine');const b=getB(...t);if(b===11)return fin('that block is unbreakable');a.tg=t;a.b=b;
+  a.need=(HD[b]||1)/((b===3||b===10)?[1,2.5,4][pk()]:1)*((b===3||b===10)&&!pk()?3:1);break}
+ case'PLACE':{const y=Math.floor(P.y),n=a.block;if(!(P.inv[n]>0)||!['planks','stone','dirt','sand','brick'].includes(n))return fin(`cannot place: you have no ${n}`);const id={planks:9,stone:3,dirt:2,sand:4,brick:10}[n];
+  if(a.at==='UNDER'){if(hit(P.x,y+1,P.z))return fin('no headroom to pillar up');setB(P.x,y,P.z,id);P.y=y+1;P.vy=0;P.ground=true;P.peak=P.y}
+  else{const x=Math.floor(P.x+f[0]*1.2),z=Math.floor(P.z+f[1]*1.2),yy=a.at==='FLOOR_AHEAD'?y-1:y;if(getB(x,yy,z)!==0&&getB(x,yy,z)!==5)return fin('that spot is already occupied');setB(x,yy,z,id)}
+  P.inv[n]--;fin(`placed ${n}`);break}
+ case'CRAFT':{const r=R[a.item];if(!r)return fin('unknown recipe');for(const k in r[0])if((P.inv[k]||0)<r[0][k])return fin(`cannot craft ${a.item}: need ${JSON.stringify(r[0])}`);for(const k in r[0])P.inv[k]-=r[0][k];add(a.item,r[1]);fin(`crafted ${r[1]} ${a.item}`);break}
+ case'EAT':{const k=P.inv.bread>0?'bread':P.inv.apple>0?'apple':null;if(!k)return fin('no food');P.inv[k]--;P.hu=Math.min(100,P.hu+(k==='bread'?35:20));P.hp=Math.min(100,P.hp+6);fin('ate '+k);break}
+ case'ATTACK':{P.swing=.3;let best=null,bd=3.2;for(const e of ents){const dx=e.x-P.x,dz=e.z-P.z,d=Math.hypot(dx,dz);if(d<bd&&(dx*f[0]+dz*f[1])/d>.1){best=e;bd=d}}
+  if(!best)return fin('swung at nothing');best.hp-=sw();best.x+=f[0]*.8;best.z+=f[1]*.8;if(best.hp<=0){scene.remove(best.g);ents.splice(ents.indexOf(best),1);fin('defeated a guardian')}else fin(`hit a ${best.kind} (${Math.max(0,Math.round(best.hp))} hp left)`);break}
+ case'INTERACT':{let o=null,bd=3.4;for(const q of objs){const d=Math.hypot(q.x+.5-P.x,q.z+.5-P.z);if(d<bd){o=q;bd=d}}if(!o)return fin('nothing to interact with within 3 blocks');fin(interact(o));break}
+ case'WAIT':a.need=Math.max(.5,Math.min(5,+a.s||1));break;
+ default:fin('unknown action')}}
+function stepAct(dt){if(!act||act.a!=='MOVE'){P.vx=P.vz=0}if(!act)return;const a=act;a.t+=dt;P.walk+=0;
+ switch(a.a){
+ case'MOVE':{const sp=P.water?2.2:4.3,sx=Math.sin(a.ang),sz=-Math.cos(a.ang);P.vx=sx*sp;P.vz=sz*sp;P.walk+=dt*10;
+  if((P.bx||P.bz)&&P.ground&&!hit(P.x+sx*.6,P.y+1,P.z+sz*.6))P.vy=8.6;
+  const m=Math.hypot(P.x-a.px,P.z-a.pz);if(m>=a.rem){P.vx=P.vz=0;fin(`moved ${m.toFixed(1)} blocks`)}
+  else if(P.bx||P.bz){a.st+=dt;if(a.st>.6){P.vx=P.vz=0;const r=reach('AHEAD');fin(`stopped after ${m.toFixed(1)} blocks, blocked by ${r?NM[getB(...r)]:'a wall'}`)}}else a.st=0;
+  if(a.t>a.rem/2.5+4){P.vx=P.vz=0;fin(`moved ${m.toFixed(1)} blocks (slow)`)}break}
+ case'TURN':case'FACE':if(a.t>.3)fin('turned, now facing '+compass(P.yaw));break;
+ case'JUMP':if(a.t>.3)fin('jumped');break;
+ case'WAIT':if(a.t>a.need)fin('waited');break;
+ case'MINE':P.swing=.3;a.p+=dt;if(a.p>=a.need){const[x,y,z]=a.tg,b=getB(x,y,z);if(!solid(b))return fin('block vanished');setB(x,y,z,0);let d='';
+  const pl=pk();if(b===7){add('wood');d='wood'}else if(b===3){if(pl){add('stone');d='stone'}}else if(b===10){if(pl){add('brick');d='brick'}}else if(b===9){add('planks');d='planks'}else if(b===8){if(Math.random()<.15){add('apple');d='apple'}}else if(b===1||b===2||b===12||b===14){add('dirt');d='dirt'}else if(b===4){add('sand');d='sand'}
+  fin(`mined ${NM[b]}`+(d?`, got ${d}`:', nothing dropped'+((b===3||b===10)?' (needs a pickaxe)':'')))}break}}
+/* ---------- Checkpoints, interaction, death ---------- */
+function interact(o){const cp=S.cp;
+ if(o.cpId===S.id&&!o.decoy){
+  const secs=Math.round((performance.now()-S.cpT)/1000);S.mem.push(`Checkpoint ${S.id}: the riddle meant ${CAT[o.type][0]} (at ${o.x},${o.z}).`);
+  S.hist.push({checkpoint:S.id,object:o.type,structure:cp.structure,riddle:cp.riddle,seconds:secs,deathsHere:S.deaths.filter(d=>d.cp===S.id).length,howHeArrived:S.events.slice(-4)});
+  log('steve',`Checkpoint ${S.id} solved in ${secs}s.`,'sys');log('opp',`Steve solved checkpoint ${S.id} in ${secs}s.`,'sys');
+  S.save={x:P.x,y:P.y,z:P.z,hp:P.hp,hu:P.hu,inv:{...P.inv}};o.decoy=true;
+  if(S.id>=S.MAX){$('clue').textContent='Steve found the Treasure of Atlantis in '+Math.round((performance.now()-S.t0)/60000*10)/10+' minutes with '+S.deaths.length+' deaths.';log('steve','VICTORY: the Treasure of Atlantis is found.','sys');S.run=false;pill('steve','victory');pill('opp','defeated');return 'you opened it: THE TREASURE OF ATLANTIS!'}
+  S.cp=null;S.job={k:'NEXT'};return 'clue solved! Something changes in the world...'}
+ if(o.guard&&!o.fired){o.fired=true;spawnG('guardian',Math.floor(P.x)+3,Math.floor(P.z)+3);return `you touch ${CAT[o.type][0]}: it was a trap, a guardian appears!`}
+ return `you examine ${CAT[o.type][0]}. Nothing happens.`}
+const compass=y=>['N','NE','E','SE','S','SW','W','NW'][Math.round((((y*180/Math.PI)%360)+360)%360/45)%8];
+function die(cause){const d={n:S.deaths.length+1,cp:S.id,x:Math.floor(P.x),y:Math.floor(P.y),z:Math.floor(P.z),cause,facing:compass(P.yaw),last:S.events.slice(-3)};S.deaths.push(d);
+ S.events.push(`YOU DIED (${cause}) near ${d.x},${d.z}; restored to the checkpoint`);log('steve',`DIED: ${cause} near (${d.x}, ${d.z}). Returning to the last checkpoint and remembering this.`,'sys');
+ const s=S.save;Object.assign(P,{x:s.x,y:s.y+.1,z:s.z,vx:0,vy:0,vz:0,hp:Math.max(s.hp,70),hu:Math.max(s.hu,60),inv:{...s.inv},peak:s.y});
+ if(act){try{fin('interrupted by death')}catch(e){}}
+ if(S.cp&&!S.job){S.job={k:'DIED',d}}}
+function world(dt){P.hu-=dt/7;if(P.hu<=0){P.hu=0;hurt(dt*1.2,'starvation')}else if(P.hu>50&&P.hp<100)P.hp=Math.min(100,P.hp+dt*.8);
+ for(const e of ents){const dx=P.x-e.x,dz=P.z-e.z,d=Math.hypot(dx,dz),ch=d<11,tx=ch?P.x:e.hx,tz=ch?P.z:e.hz,l=Math.hypot(tx-e.x,tz-e.z);
+  if(l>.9&&d>1.3){const sp=(e.kind==='golem'?2.2:2.9)*dt;e.x+=(tx-e.x)/l*sp;e.z+=(tz-e.z)/l*sp}
+  e.cd-=dt;if(d<1.7&&Math.abs(getB(e.x,0,e.z)?0:0)===0&&e.cd<=0&&Math.abs(P.y-groundY(e.x,e.z))<2.2){e.cd=1.3;hurt(e.kind==='golem'?14:8,'struck by a '+e.kind)}
+  e.g.position.set(e.x,groundY(e.x,e.z),e.z);e.g.rotation.y=Math.atan2(dx,dz)}}
+/* ---------- World AI (Agent 2) ---------- */
+const OSYS=`You are the World Director: an unseen adversary running a Minecraft-like treasure hunt on a finite 1000x1000 map (x and z from -500 to 499). An explorer named Steve, whom you can never talk to, move, heal or teleport, must find the Treasure of Atlantis. You build ONE checkpoint at a time, only when asked, learning from Steve's history so each is harder than the last but always fair. Steve sees only your riddle, a vague map circle, and appearances (never names or coordinates of hidden things).
+Object catalog (exact keys): fridge, well, campfire, anvil, bookshelf, statue, bell, obelisk, treasure (treasure only for the final checkpoint).
+Structures: ruin, temple, hut, tower, camp, none. Traps: "pit" (hidden 3x3 trapdoor over a 6-deep spiked hole, escapable by mining or placing blocks) and "plate" (hidden pressure plate, 25 damage). Guardians: "guardian" (30 hp, 8 damage), "golem" (60 hp, 14 damage, checkpoint 3+ only).
+Engine-enforced fairness: target 50-140 blocks from Steve; at most 4 traps (+1 per 2 checkpoints) and 1+floor(id/2) guardians (max 3), all within 40 blocks of the target and at least 10 blocks from Steve's checkpoint; no instant kills. Decoys (objects that are not the answer, optionally a hidden guardian ambush) are allowed, max 3.
+The riddle must be a movie-style puzzle of 2-4 sentences describing the object by its function or appearance, never its name, key or coordinates.
+Reply JSON only: {"strategy":"why this design beats what you know about Steve","riddle":"","object":"","structure":"","x":0,"z":0,"map_radius":25,"traps":[{"type":"pit","x":0,"z":0}],"guardians":[{"kind":"guardian","x":0,"z":0}],"decoys":[{"object":"","x":0,"z":0,"guardian":false}]}`;
+function oppPrompt(j){const base={steve_now:{x:Math.round(P.x),z:Math.round(P.z),inventory:P.inv},solved_history:S.hist,deaths:S.deaths.slice(-8),world_bounds:'x,z in -500..499'};
+ if(j.k==='NEXT')return JSON.stringify({event:'Steve solved the previous checkpoint (or the game just began). Build the next one.',checkpoint_id:S.id+1,is_final:S.id+1>=S.MAX,...base});
+ return JSON.stringify({event:'Steve just died. Adapt without breaking fairness.',checkpoint_id:S.id,death:j.d,current_target:S.cp&&{x:S.cp.x,z:S.cp.z},...base,reply_format:'{"strategy":"","hint":"only if he died 2+ times here, else empty","traps":[{"type":"pit|plate","x":0,"z":0}],"guardians":[{"kind":"guardian","x":0,"z":0}]}'})}
+const num=v=>Math.round(+v)||0,cl=v=>Math.max(WMIN+8,Math.min(WMAX-8,num(v)));
+function okSpot(x,z,cp){if(!isLand(x,z))return'not on land';if(S.save&&Math.hypot(x-S.save.x,z-S.save.z)<10)return'too close to the checkpoint';if(Math.hypot(x-cp.x,z-cp.z)>40)return'too far from the target';return null}
+function addHazards(r,cp,id){const nt=Math.min(4+Math.floor(id/2),6),ng=Math.min(1+Math.floor(id/2),3);let t=0,g=0,rej=[];
+ for(const q of(r.traps||[]).slice(0,nt)){const x=cl(q.x),z=cl(q.z),bad=okSpot(x,z,cp);if(bad){rej.push(`trap ${bad}`);continue}if(q.type==='plate'){setB(x,groundY(x,z)-1,z,14)}else makePit(x,z);t++}
+ for(const q of(r.guardians||[]).slice(0,ng)){const x=cl(q.x),z=cl(q.z),bad=okSpot(x,z,cp);if(bad){rej.push(`guardian ${bad}`);continue}spawnG(q.kind==='golem'&&id>=3?'golem':'guardian',x,z);g++}
+ return`${t} traps, ${g} guardians`+(rej.length?` (engine rejected: ${rej.join('; ')})`:'')}
+function applyOpp(j,r){
+ if(r.strategy)log('opp','Strategy: '+r.strategy);
+ if(j.k==='DIED'){const s=addHazards(r,S.cp,S.id);log('opp',`Adapted: ${s}.`);if(r.hint&&S.deaths.filter(d=>d.cp===S.id).length>=2){S.cp.riddle+='\n\nA whisper on the wind: '+r.hint;$('clue').textContent=S.cp.riddle;log('opp','Whispered extra hint: '+r.hint)}return}
+ const id=S.id+1,fin=id>=S.MAX;let type=fin?'treasure':CAT[r.object]&&r.object!=='treasure'?r.object:'statue';
+ let x=num(r.x),z=num(r.z),dx=x-P.x,dz=z-P.z,d=Math.hypot(dx,dz)||1;if(d<50||d>140){const k=Math.max(50,Math.min(140,d))/d;x=P.x+dx*k;z=P.z+dz*k}
+ x=cl(x);z=cl(z);let f=false;for(let rr=0;rr<80&&!f;rr+=6)for(let a=0;a<8&&!f;a++){const tx=cl(x+Math.cos(a)*rr),tz=cl(z+Math.sin(a)*rr);if(isLand(tx,tz)&&groundY(tx,tz)<22){x=tx;z=tz;f=true}}
+ const st=['ruin','temple','hut','tower','camp'].includes(r.structure)?r.structure:'none';if(fin&&st==='none')r.structure='temple';const S2=fin&&st==='none'?'temple':st;
+ if(S2!=='none')struct(S2,x,z);
+ const cp={id,riddle:String(r.riddle||'Find what the wind is hiding.'),x,z,structure:S2,type};
+ const rad=Math.max(15,Math.min(45,num(r.map_radius)||25)),mx=Math.round((x+(Math.random()-.5)*rad)/5)*5,mz=Math.round((z+(Math.random()-.5)*rad)/5)*5;
+ cp.map=`The map has a circle of radius ~${rad} blocks centred at x=${mx}, z=${mz}; the answer lies somewhere inside it.`;
+ placeObj(type,x,z,{cpId:id});S.cp=cp;S.id=id;
+ for(const q of(r.decoys||[]).slice(0,3)){const dx2=cl(q.x),dz2=cl(q.z);if(!CAT[q.object]||q.object==='treasure'||okSpot(dx2,dz2,cp))continue;placeObj(q.object,dx2,dz2,{decoy:true,guard:!!q.guardian})}
+ const s=addHazards(r,cp,id);log('opp',`Checkpoint ${id}: hid ${CAT[type][0]} ${S2==='none'?'in the open':'inside a '+S2} at (${x}, ${z}). ${s}.`);log('opp','Riddle: '+cp.riddle);
+ $('hCp').textContent=`Checkpoint ${id} of ${S.MAX}`;$('clue').textContent=cp.riddle+'\n\n'+cp.map;S.cpT=performance.now()}
+async function oppLoop(){while(S.run){if(!S.job||S.paused||S.halt.opp){await sleep(300);continue}const j=S.job;pill('opp','thinking');S.busy.opp=true;let r;
+ try{r=await gem('opp',OSYS,oppPrompt(j))}catch(e){S.busy.opp=false;if(e instanceof Fatal)halt('opp',e.message);else log('opp',e.message,'sys');continue}
+ S.busy.opp=false;try{applyOpp(j,r)}catch(e){log('opp','Could not apply reply: '+e.message,'sys');await sleep(1500);continue}S.job=null;pill('opp','watching')}}
+/* ---------- Steve's brain (Agent 1) ---------- */
+const SSYS=`You are Steve, an explorer in a Minecraft-like world (finite: x and z from -500 to 499; y is height). You hunt the Treasure of Atlantis, hidden by an unseen opponent who leaves one riddle per checkpoint. You use a game controller: you do not manage physics. Each turn you receive your perception and reply with 1-4 controller actions that run in order.
+North is -z, east is +x. Turning right is positive degrees.
+Actions (JSON objects):
+{"a":"MOVE","dir":"FORWARD|BACK|LEFT|RIGHT","blocks":1-30} walks, auto-steps up 1-block ledges, stops when blocked
+{"a":"TURN","deg":-180..180} | {"a":"FACE","x":n,"z":n} | {"a":"JUMP"}
+{"a":"MINE","at":"AHEAD|DOWN|UP"} break one block in reach (2 blocks, up to 2 high). Stone and brick only drop with a pickaxe.
+{"a":"PLACE","block":"planks|stone|dirt|sand|brick","at":"FRONT|FLOOR_AHEAD|UNDER"} FRONT = wall ahead at feet level, FLOOR_AHEAD = floor tile ahead (bridge), UNDER = raises you one block (pillar out of holes)
+{"a":"CRAFT","item":"planks|stick|wood_pickaxe|stone_pickaxe|wood_sword|stone_sword"} | {"a":"EAT"} | {"a":"ATTACK"} | {"a":"INTERACT"} (object within 3 blocks) | {"a":"WAIT","s":1-5}
+Recipes: 1 wood = 4 planks; 2 planks = 4 stick; wood_pickaxe = 3 planks + 2 stick; stone_pickaxe = 3 stone + 2 stick; wood_sword = 2 planks + 1 stick; stone_sword = 2 stone + 1 stick.
+Things are described only by appearance, never named. Decode the riddle by matching it to what you see, and use the vague map to pick where to search. Ground that looks off may be a trap. Dying returns you to your last checkpoint, but you keep every memory: never repeat what killed you. Guardians can be fought with a sword or avoided.
+Reply JSON only: {"thought":"2-4 sentences of reasoning","actions":[...]}`;
+function prof(d){const f=fw(),x=P.x+f[0]*d,z=P.z+f[1]*d,fy=Math.floor(P.y);for(let y=fy+4;y>=fy-8;y--){const b=getB(x,y,z);if(b)return b===5?'water':b===8?'leaves':(y+1-fy===0?'flat':(y+1-fy>0?'+':'')+(y+1-fy))}return'drop>8'}
+function perceive(){const f=fw(),fy=Math.floor(P.y),L=[],cp=S.cp;
+ L.push(`CHECKPOINT ${S.id} of ${S.MAX}. Riddle: "${cp.riddle}"`,cp.map);
+ L.push(`You are at x=${P.x.toFixed(1)}, y=${P.y.toFixed(1)}, z=${P.z.toFixed(1)} facing ${compass(P.yaw)}. Health ${Math.ceil(P.hp)}/100, hunger ${Math.ceil(P.hu)}/100${P.water?', in water':''}.`);
+ L.push('Inventory: '+(Object.entries(P.inv).filter(e=>e[1]>0).map(e=>e[0]+' x'+e[1]).join(', ')||'empty')+`. Pickaxe: ${['none','wood','stone'][pk()]}. Sword damage: ${sw()}.`);
+ L.push('Terrain ahead (height change per block): '+[1,2,3,4,5,6].map(d=>`${d}:${prof(d)}`).join(' '));
+ let tr=null,st=null,wa=null,man=null,sus=[],td=99,sd=99,wd=99,md=99;
+ for(let a=-10;a<=10;a++)for(let b=-10;b<=10;b++)for(let y=fy-3;y<=fy+7;y++){const x=Math.floor(P.x)+a,z=Math.floor(P.z)+b,t=getB(x,y,z),d=Math.hypot(a,b);
+  if(t===7&&d<td){td=d;tr=[x,y,z]}else if(t===3&&d<sd&&getB(x,y+1,z)===0){sd=d;st=[x,y,z]}else if(t===5&&d<wd&&getB(x,y+1,z)===0){wd=d;wa=[x,y,z]}
+  else if((t===12||t===14)&&d<8&&sus.length<4)sus.push(`${t===12?'pale grass tile with faint seams':'patch of bare loose dirt'} at ${x},${z}`)}
+ for(let a=-30;a<=30;a+=3)for(let b=-30;b<=30;b+=3)for(let y=fy-8;y<=fy+8;y++){const x=Math.floor(P.x)+a,z=Math.floor(P.z)+b,t=getB(x,y,z),d=Math.hypot(a,b);if((t===9||t===10)&&d<md){md=d;man=[x,z]}}
+ const q=(n,p,d)=>p?`${n} at (${p.join(', ')}) ~${Math.round(d)} away`:null;
+ L.push('Nearby: '+[q('tree trunk',tr,td),q('exposed stone',st,sd),q('water',wa,wd),man&&`man-made walls (planks or bricks) around (${man[0]}, ${man[1]}) ~${Math.round(md)} away`,...sus].filter(Boolean).join('; ')||'nothing notable');
+ const vis=[];for(const o of objs){const dx=o.x+.5-P.x,dz=o.z+.5-P.z,d=Math.hypot(dx,dz);if(d<45)vis.push([d,`${CAT[o.type][0]} at (${o.x}, ${o.z})`,dx,dz])}
+ for(const e of ents){const dx=e.x-P.x,dz=e.z-P.z,d=Math.hypot(dx,dz);if(d<45)vis.push([d,`${e.kind==='golem'?'a huge grey armoured figure':'a tall dark-red humanoid'} (${Math.round(e.hp)} hp) at (${Math.floor(e.x)}, ${Math.floor(e.z)})`,dx,dz])}
+ vis.sort((a,b)=>a[0]-b[0]);L.push('In sight: '+(vis.slice(0,8).map(v=>{const rel=Math.round(((Math.atan2(v[2],-v[3])-P.yaw)*180/Math.PI+540)%360-180);return`${v[1]}, ${Math.round(v[0])} blocks away, ${Math.abs(rel)<8?'straight ahead':Math.abs(rel)+' degrees '+(rel>0?'right':'left')}`}).join('; ')||'nothing'));
+ L.push('Recent results: '+(S.events.slice(-10).join(' | ')||'none yet'));
+ if(S.mem.length)L.push('Solved: '+S.mem.join(' '));
+ if(S.deaths.length)L.push('DEATH MEMORIES: '+S.deaths.map(d=>`#${d.n} at checkpoint ${d.cp} near (${d.x}, ${d.z}) facing ${d.facing}: ${d.cause}; just before: ${d.last.join(' / ')}`).join(' || '));
+ return L.join('\n')}
+async function steveLoop(){while(S.run){if(S.paused||S.halt.steve||!S.cp){await sleep(250);continue}
+ pill('steve','thinking');S.busy.steve=true;let r;
+ try{r=await gem('steve',SSYS,perceive())}catch(e){S.busy.steve=false;if(e instanceof Fatal)halt('steve',e.message);else log('steve',e.message,'sys');continue}
+ S.busy.steve=false;while(S.paused&&S.run)await sleep(200);if(!S.cp)continue;
+ log('steve','Thinking: '+(r.thought||'(no thought)'));pill('steve','acting');
+ for(const a of(Array.isArray(r.actions)?r.actions:[]).slice(0,4)){if(S.halt.steve||!S.run)break;while(S.paused)await sleep(200);
+  const res=await doAct(a);const line=`${a.a}${a.dir?' '+a.dir:''}${a.blocks?' '+a.blocks:''}${a.at?' '+a.at:''}${a.item?' '+a.item:a.block?' '+a.block:''}: ${res}`;S.events.push(line);log('steve',line,'act');if(!S.cp)break}
+ await sleep(200)}}
+/* ---------- Camera, main loop, UI ---------- */
+const cam={yaw:0,pitch:.5,dist:9,fp:false};let drag=false;
+addEventListener('mousedown',e=>{if(e.target===rn.domElement)drag=true});addEventListener('mouseup',()=>drag=false);
+addEventListener('mousemove',e=>{if(drag){cam.yaw-=e.movementX*.006;cam.pitch=Math.max(.05,Math.min(1.4,cam.pitch+e.movementY*.006))}});
+addEventListener('wheel',e=>{if(e.target===rn.domElement)cam.dist=Math.max(3,Math.min(30,cam.dist+e.deltaY*.01))});
+addEventListener('keydown',e=>{if(e.code==='KeyV'&&!S.panel)cam.fp=!cam.fp});
+addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();rn.setSize(innerWidth,innerHeight)});
+const simOn=()=>S.run&&!S.paused&&!S.halt.steve&&!S.halt.opp&&!S.busy.steve&&!S.busy.opp;let last=performance.now(),hudT=0;
+function tick(now){requestAnimationFrame(tick);const dt=Math.min((now-last)/1000,.05);last=now;
+ if(simOn()){stepAct(dt);phys(dt);world(dt);P.swing=Math.max(0,P.swing-dt)}
+ sm.position.set(P.x,P.y,P.z);sm.rotation.y=Math.PI-P.yaw;sm.visible=!cam.fp;const w=Math.sin(P.walk)*.7*(act&&act.a==='MOVE'?1:0);lL.rotation.x=w;rL.rotation.x=-w;lA.rotation.x=-w;rA.rotation.x=P.swing>0?-1.4+Math.sin(now/40)*.4:w;
+ if(cam.fp){camera.position.set(P.x,P.y+1.6,P.z);camera.lookAt(P.x+Math.sin(P.yaw),P.y+1.6,P.z-Math.cos(P.yaw))}
+ else{const c=Math.cos(cam.pitch)*cam.dist,ty=P.y+1.4;camera.position.set(P.x+Math.sin(cam.yaw)*c,ty+Math.sin(cam.pitch)*cam.dist,P.z+Math.cos(cam.yaw)*c);camera.lookAt(P.x,ty,P.z)}
+ stream();hudT+=dt;if(hudT>.2){hudT=0;$('hHp').textContent=Math.ceil(Math.max(0,P.hp));$('hHu').textContent=Math.ceil(P.hu);$('bHp').style.width=Math.max(0,P.hp)+'%';$('bHu').style.width=P.hu+'%';
+  $('hPos').textContent=`x ${P.x.toFixed(0)}  y ${P.y.toFixed(0)}  z ${P.z.toFixed(0)}  facing ${compass(P.yaw)}`;$('hDeaths').textContent='Deaths: '+S.deaths.length;
+  $('inv').innerHTML=Object.entries(P.inv).filter(e=>e[1]>0).map(e=>`<span>${e[0]} ${e[1]}</span>`).join('')||'<span>empty</span>'}
+ rn.render(scene,camera)}
+requestAnimationFrame(tick);
+$('bStart').onclick=()=>{readPanel();if(!keysOf('steve').length||!keysOf('opp').length){S.halt.steve=keysOf('steve').length?null:'Add at least one API key.';S.halt.opp=keysOf('opp').length?null:'Add at least one API key.';openPanel();S.halt={steve:null,opp:null};return}
+ localStorage.setItem('atl2',JSON.stringify(cfg));
+ let sx=0,sz=0;out:for(let r=0;r<120;r+=8)for(let a=0;a<8;a++){const x=Math.round(Math.cos(a)*r),z=Math.round(Math.sin(a)*r);if(isLand(x,z)&&groundY(x,z)<18){sx=x;sz=z;break out}}
+ P.x=sx+.5;P.z=sz+.5;P.y=groundY(sx,sz);P.peak=P.y;S.save={x:P.x,y:P.y,z:P.z,hp:100,hu:100,inv:{...P.inv}};
+ S.run=true;S.t0=performance.now();S.job={k:'NEXT'};$('bStart').hidden=true;$('bPause').hidden=false;pill('steve','waiting for a clue');pill('opp','building');
+ log('opp','The World AI starts building the first checkpoint.','sys');oppLoop();steveLoop()};
+$('bPause').onclick=()=>{S.paused=!S.paused;$('bPause').textContent=S.paused?'Resume':'Pause';log('steve',S.paused?'Paused by the observer.':'Resumed.','sys')};
+if(!keysOf('steve').length)openPanel();
+</script></body></html>

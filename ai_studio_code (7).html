@@ -1,0 +1,1460 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🌸 Sakura Grand AI Voxel Cafe</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts: VT323 & Fredoka -->
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=VT323&family=Nunito:wght@400;600;800&display=swap" rel="stylesheet">
+  <!-- Three.js & OrbitControls -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      font-family: 'Fredoka', 'Nunito', sans-serif;
+      user-select: none;
+      -webkit-user-select: none;
+      background-color: #1a1016;
+    }
+
+    .mc-font {
+      font-family: 'VT323', monospace;
+      letter-spacing: 1px;
+    }
+
+    .game-btn {
+      background: linear-gradient(180deg, #f472b6 0%, #db2777 50%, #9d174d 100%);
+      border: 2px solid #831843;
+      border-top-color: #fbcfe8;
+      border-left-color: #fce7f3;
+      box-shadow: 0 3px 0 #500724, inset 0 1px 2px rgba(255,255,255,0.5);
+      text-shadow: 1px 1px 0px #4c0519;
+      color: #ffffff;
+      transition: all 0.08s ease;
+    }
+
+    .game-btn:hover {
+      filter: brightness(1.12);
+      transform: translateY(-1px);
+    }
+
+    .game-btn:active {
+      background: linear-gradient(180deg, #9d174d 0%, #db2777 50%, #f472b6 100%);
+      border-top-color: #500724;
+      border-left-color: #500724;
+      border-bottom-color: #fbcfe8;
+      border-right-color: #fbcfe8;
+      transform: translateY(2px);
+      box-shadow: none;
+    }
+
+    .game-btn-icon {
+      width: 48px;
+      height: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      border-radius: 14px;
+    }
+
+    .game-panel {
+      background: rgba(255, 245, 249, 0.96);
+      border: 3px solid #f472b6;
+      border-top-color: #fdf2f8;
+      border-left-color: #fdf2f8;
+      box-shadow: 0 20px 50px rgba(131, 24, 67, 0.4);
+      backdrop-filter: blur(12px);
+      color: #831843;
+    }
+
+    .game-input {
+      background: #ffffff;
+      border: 2px solid #f472b6;
+      box-shadow: inset 0 2px 4px rgba(131, 24, 67, 0.1);
+      color: #831843;
+      outline: none;
+    }
+    .game-input:focus {
+      border-color: #db2777;
+      box-shadow: inset 0 2px 4px rgba(131, 24, 67, 0.15), 0 0 0 2px rgba(244, 114, 182, 0.3);
+    }
+
+    /* Speech Bubble Animation */
+    .speech-bubble {
+      animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+    @keyframes popIn {
+      from { transform: scale(0.6); opacity: 0; }
+      to { transform: scale(1); opacity: 1; }
+    }
+
+    /* Custom scrollbars */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-thumb { background: #f472b6; border-radius: 4px; }
+  </style>
+</head>
+<body class="relative w-screen h-screen overflow-hidden">
+
+  <!-- Fullscreen 3D Canvas -->
+  <div id="canvas-container" class="absolute inset-0 w-full h-full z-0"></div>
+
+  <!-- Live Activity Ticker (Subtle Bottom Floating Event Feed) -->
+  <div id="activity-feed" class="absolute bottom-4 left-4 z-10 max-w-sm pointer-events-none flex flex-col gap-1.5 opacity-90 transition-all"></div>
+
+  <!-- Top Right Corner Controls (Sound + Gear Settings) -->
+  <div class="absolute top-4 right-4 z-20 flex items-center gap-3">
+    <!-- Music Button -->
+    <button id="btn-audio" class="game-btn game-btn-icon shadow-lg" title="Toggle Lo-Fi Cafe Music">
+      <i id="audio-icon" class="fa-solid fa-volume-xmark"></i>
+    </button>
+
+    <!-- Gear Settings Button -->
+    <button id="btn-gear" class="game-btn game-btn-icon shadow-lg" title="Open Cafe & Character Manager">
+      <i class="fa-solid fa-gear text-xl"></i>
+    </button>
+  </div>
+
+  <!-- Gamified Settings & Character Management Modal -->
+  <div id="modal-settings" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/45 backdrop-blur-sm hidden">
+    <div class="game-panel w-full max-w-2xl max-h-[92vh] rounded-3xl p-6 flex flex-col gap-4 overflow-hidden relative shadow-2xl animate-in fade-in zoom-in duration-150">
+      
+      <!-- Modal Header -->
+      <div class="flex items-center justify-between border-b-2 border-pink-200 pb-3">
+        <div class="flex items-center gap-2.5">
+          <div class="w-10 h-10 rounded-2xl bg-pink-200 flex items-center justify-center text-pink-600 text-xl border border-pink-400">
+            🌸
+          </div>
+          <div>
+            <h2 class="mc-font text-2xl text-pink-700 leading-none">CAFE ROSTER & GEMINI AI MANAGER</h2>
+            <p class="text-[11px] text-pink-500 font-semibold">Per-Character AI Keys, Autonomous Chores & World Collision</p>
+          </div>
+        </div>
+        <button id="btn-close-modal" class="w-8 h-8 rounded-full bg-pink-100 hover:bg-pink-200 text-pink-700 flex items-center justify-center font-bold text-lg transition">
+          ✕
+        </button>
+      </div>
+
+      <!-- Modal Body (Scrollable) -->
+      <div class="flex-1 overflow-y-auto pr-1 space-y-4">
+        
+        <!-- SECTION 1: GLOBAL MODEL SETTINGS -->
+        <div class="bg-white/85 p-3.5 rounded-2xl border border-pink-200 space-y-2 shadow-sm">
+          <div class="flex items-center justify-between">
+            <span class="mc-font text-lg text-pink-800 font-bold flex items-center gap-1.5">
+              <i class="fa-solid fa-microchip text-pink-500"></i> AI Model Configuration
+            </span>
+            <span class="text-[10px] bg-pink-100 text-pink-700 px-2 py-0.5 rounded-full font-bold">Rigid Bounds Active</span>
+          </div>
+
+          <div>
+            <label class="block text-[11px] font-bold text-pink-700 mb-1">Gemini Model Name (Applied to all characters)</label>
+            <input id="input-model-name" type="text" value="gemini-3.5-flash-lite" placeholder="gemini-3.5-flash-lite" 
+                   class="game-input w-full px-3 py-1.5 rounded-xl text-xs font-mono font-semibold">
+          </div>
+        </div>
+
+        <!-- SECTION 2: CHARACTER ROLE LIMITS -->
+        <div class="bg-white/85 p-3.5 rounded-2xl border border-pink-200 space-y-2 shadow-sm">
+          <div class="flex items-center justify-between">
+            <span class="mc-font text-lg text-pink-800 font-bold flex items-center gap-1.5">
+              <i class="fa-solid fa-users text-pink-500"></i> Staff Roster & Limits
+            </span>
+            <span class="text-xs text-pink-500 font-medium">Spawned: <b id="total-npc-count">0</b></span>
+          </div>
+
+          <div class="grid grid-cols-3 sm:grid-cols-6 gap-2 text-center text-xs">
+            <div class="p-2 rounded-xl bg-pink-50 border border-pink-200">
+              <div class="text-base">👔</div>
+              <div class="font-bold text-pink-700">Manager</div>
+              <div id="badge-manager" class="text-[11px] font-extrabold text-pink-600">0/1</div>
+            </div>
+            <div class="p-2 rounded-xl bg-pink-50 border border-pink-200">
+              <div class="text-base">☕</div>
+              <div class="font-bold text-pink-700">Cafeterian</div>
+              <div id="badge-cafeterian" class="text-[11px] font-extrabold text-pink-600">0/2</div>
+            </div>
+            <div class="p-2 rounded-xl bg-pink-50 border border-pink-200">
+              <div class="text-base">👨‍🍳</div>
+              <div class="font-bold text-pink-700">Cook</div>
+              <div id="badge-cook" class="text-[11px] font-extrabold text-pink-600">0/2</div>
+            </div>
+            <div class="p-2 rounded-xl bg-pink-50 border border-pink-200">
+              <div class="text-base">🤵</div>
+              <div class="font-bold text-pink-700">Waiter</div>
+              <div id="badge-waiter" class="text-[11px] font-extrabold text-pink-600">0/4</div>
+            </div>
+            <div class="p-2 rounded-xl bg-pink-50 border border-pink-200">
+              <div class="text-base">🧹</div>
+              <div class="font-bold text-pink-700">Maid</div>
+              <div id="badge-maid" class="text-[11px] font-extrabold text-pink-600">0/2</div>
+            </div>
+            <div class="p-2 rounded-xl bg-pink-50 border border-pink-200">
+              <div class="text-base">🍰</div>
+              <div class="font-bold text-pink-700">Guests</div>
+              <div id="badge-guest" class="text-[11px] font-extrabold text-pink-600">0/∞</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- SECTION 3: ADD NEW CHARACTER WITH PER-CHARACTER GEMINI KEY -->
+        <div class="bg-white/85 p-3.5 rounded-2xl border border-pink-200 space-y-3 shadow-sm">
+          <span class="mc-font text-lg text-pink-800 font-bold flex items-center gap-1.5">
+            <i class="fa-solid fa-user-plus text-pink-500"></i> Spawn AI Character
+          </span>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            <div>
+              <label class="block text-[11px] font-bold text-pink-700 mb-0.5">Character Name</label>
+              <input id="npc-new-name" type="text" placeholder="e.g. Clara" 
+                     class="game-input w-full px-2.5 py-1.5 rounded-xl text-xs">
+            </div>
+
+            <div>
+              <label class="block text-[11px] font-bold text-pink-700 mb-0.5">Assigned Role</label>
+              <select id="npc-new-role" class="game-input w-full px-2.5 py-1.5 rounded-xl text-xs font-medium cursor-pointer">
+                <option value="manager">Manager (Overview & Help - Max 1)</option>
+                <option value="cafeterian">Cafeterian (Pastry & Cashier - Max 2)</option>
+                <option value="cook">Cook / Barista (Drinks & Kitchen - Max 2)</option>
+                <option value="waiter" selected>Waiter (Serving & Orders - Max 4)</option>
+                <option value="maid">Maid (Cleaning, Dishes & Plants - Max 2)</option>
+                <option value="guest">Guest / Customer (Social & Eating - Unlimited)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+            <!-- Individual Gemini API Key -->
+            <div class="sm:col-span-2">
+              <label class="block text-[11px] font-bold text-pink-700 mb-0.5">
+                <i class="fa-solid fa-key text-amber-500"></i> Individual Gemini API Key for this Character
+              </label>
+              <input id="npc-new-apikey" type="password" placeholder="AIzaSy... (Unique per character)" 
+                     class="game-input w-full px-2.5 py-1.5 rounded-xl text-xs font-mono">
+            </div>
+
+            <!-- Color & Spawn -->
+            <div class="flex items-end gap-2">
+              <div class="w-14">
+                <label class="block text-[11px] font-bold text-pink-700 mb-0.5">Outfit</label>
+                <input id="npc-new-color" type="color" value="#f472b6" 
+                       class="w-full h-8 rounded-lg cursor-pointer border border-pink-300 p-0.5 bg-white">
+              </div>
+              <button id="btn-spawn-npc" class="game-btn mc-font flex-1 py-1.5 text-sm rounded-xl flex items-center justify-center gap-1">
+                <i class="fa-solid fa-wand-magic-sparkles"></i> Awaken
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- SECTION 4: ACTIVE CHARACTERS MANAGEMENT LIST -->
+        <div class="bg-white/85 p-3.5 rounded-2xl border border-pink-200 space-y-2.5 shadow-sm">
+          <span class="mc-font text-lg text-pink-800 font-bold flex items-center gap-1.5">
+            <i class="fa-solid fa-list-check text-pink-500"></i> Living Characters in Cafe
+          </span>
+
+          <div id="npc-list-container" class="space-y-2 max-h-56 overflow-y-auto pr-1">
+            <!-- Dynamic character entries injected here -->
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Modal Footer -->
+      <div class="border-t-2 border-pink-200 pt-3 flex items-center justify-between">
+        <span id="save-toast" class="text-xs font-bold text-emerald-600 opacity-0 transition-opacity flex items-center gap-1">
+          <i class="fa-solid fa-circle-check"></i> Roster & AI Brains Synchronized!
+        </span>
+        <button id="btn-save-settings" class="game-btn mc-font px-5 py-2 text-base rounded-xl flex items-center gap-1.5">
+          <i class="fa-solid fa-floppy-disk"></i> Save Configuration
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    // -------------------------------------------------------------
+    // CONSTANTS & POIs (POINTS OF INTEREST)
+    // -------------------------------------------------------------
+    const BLOCK_SIZE = 1;
+    let scene, camera, renderer, controls;
+    let dirLight, ambientLight, hemisphereLight;
+    let coreGroup, loftGroup, roofGroup;
+
+    // Rigid Wall Colliders (Box3 array for camera & character collision)
+    const wallColliders = [];
+
+    // Cafe Points of Interest for autonomous navigation
+    const POIS = {
+      espresso_bar: new THREE.Vector3(8.5, 1.0, -7.0),
+      pastry_counter: new THREE.Vector3(10.5, 1.0, -9.0),
+      cash_register: new THREE.Vector3(8.5, 1.0, -5.5),
+      kitchen_prep: new THREE.Vector3(13.0, 1.0, -13.0),
+      dish_sink: new THREE.Vector3(13.5, 1.0, -11.0),
+      manager_station: new THREE.Vector3(-1.0, 1.0, 4.0),
+      reflecting_pool_side: new THREE.Vector3(-6.0, 1.0, -3.0),
+      dining_table_1: new THREE.Vector3(12.0, 1.0, -1.0),
+      dining_table_2: new THREE.Vector3(12.0, 1.0, 4.0),
+      patio_table_1: new THREE.Vector3(16.0, 1.0, 8.0),
+      patio_table_2: new THREE.Vector3(20.0, 1.0, 14.0),
+      garden_flowers: new THREE.Vector3(-9.0, 1.0, 12.0),
+      grand_stairs_base: new THREE.Vector3(-11.0, 1.0, 4.0),
+      loft_library: new THREE.Vector3(-9.0, 7.5, -9.0),
+      loft_tea_lounge: new THREE.Vector3(10.0, 7.5, -3.0),
+      entrance_porch: new THREE.Vector3(0.0, 1.0, 10.0)
+    };
+
+    // Role definitions, behaviors & limits
+    const ROLE_LIMITS = {
+      manager: 1,
+      cafeterian: 2,
+      cook: 2,
+      waiter: 4,
+      maid: 2,
+      guest: Infinity
+    };
+
+    const ROLE_PROMPTS = {
+      manager: "You are the manager of Sakura Grand Voxel Cafe. Your chores: oversee service, inspect tables, greet guests warmly, check pastry stock, and assist any busy staff.",
+      cafeterian: "You are the friendly cafeterian. Your chores: manage the pastry case (cakes, tarts, croissants), ring up payments at the cash register, and hand desserts to waiters and guests.",
+      cook: "You are the cafe cook and barista. Your chores: brew espresso, steam silky milk lattes, bake fresh berry muffins, prepare snack plates, and call ready orders.",
+      waiter: "You are the attentive waiter. Your chores: take customer orders at tables, deliver hot drinks and cakes from the counter to tables, clean up empty cups, and check customer satisfaction.",
+      maid: "You are the diligent maid. Your chores: sweep the dining area, wipe down tables, wash dishes at the sink, and prune the indoor and garden flowers.",
+      guest: "You are a happy customer visiting the cafe. Your chores: find a seat, order tasty snacks and lattes, chat with nearby guests, enjoy the pool view, and pay for meals."
+    };
+
+    let activeNPCs = [];
+    let petalParticles, petalPosArray;
+    const PETAL_COUNT = 240;
+
+    // Procedural Textures
+    const materials = {};
+
+    function createPixelCanvasTexture(type) {
+      const canvas = document.createElement('canvas');
+      canvas.width = 16; canvas.height = 16;
+      const ctx = canvas.getContext('2d');
+
+      const drawNoise = (baseHex, noiseRange = 12) => {
+        const base = new THREE.Color(baseHex);
+        for (let x = 0; x < 16; x++) {
+          for (let y = 0; y < 16; y++) {
+            const factor = 1 + (Math.random() - 0.5) * (noiseRange / 100);
+            const r = Math.min(255, Math.max(0, Math.floor(base.r * 255 * factor)));
+            const g = Math.min(255, Math.max(0, Math.floor(base.g * 255 * factor)));
+            const b = Math.min(255, Math.max(0, Math.floor(base.b * 255 * factor)));
+            ctx.fillStyle = `rgb(${r},${g},${b})`;
+            ctx.fillRect(x, y, 1, 1);
+          }
+        }
+      };
+
+      if (type === 'sandstone_smooth') {
+        drawNoise('#fef3c7', 6);
+        ctx.strokeStyle = '#fde68a'; ctx.strokeRect(0, 0, 16, 16);
+      } else if (type === 'sandstone_pillar') {
+        drawNoise('#fde68a', 8);
+        ctx.fillStyle = '#d97706';
+        ctx.fillRect(0, 0, 2, 16); ctx.fillRect(14, 0, 2, 16);
+      } else if (type === 'cyan_mosaic') {
+        drawNoise('#06b6d4', 10);
+        ctx.fillStyle = '#ffffff'; ctx.fillRect(2, 2, 12, 12);
+        ctx.fillStyle = '#0891b2'; ctx.fillRect(4, 4, 8, 8);
+        ctx.fillStyle = '#fbbf24'; ctx.fillRect(6, 6, 4, 4);
+      } else if (type === 'slate_pattern') {
+        drawNoise('#334155', 14);
+        ctx.fillStyle = '#1e293b'; ctx.fillRect(0, 0, 8, 8); ctx.fillRect(8, 8, 8, 8);
+      } else if (type === 'honey_planks') {
+        drawNoise('#d97706', 10); ctx.fillStyle = '#92400e';
+        for (let y = 3; y < 16; y += 4) ctx.fillRect(0, y, 16, 1);
+      } else if (type === 'dark_wood') {
+        drawNoise('#5c2b0e', 14); ctx.fillStyle = '#381604';
+        ctx.fillRect(0, 0, 2, 16); ctx.fillRect(14, 0, 2, 16);
+      } else if (type === 'white_plaster') {
+        drawNoise('#fff5f8', 4); ctx.fillStyle = '#fce7f3'; ctx.strokeRect(0, 0, 16, 16);
+      } else if (type === 'red_brick') {
+        drawNoise('#be123c', 14); ctx.fillStyle = '#fecdd3';
+        ctx.fillRect(0, 7, 16, 1); ctx.fillRect(0, 15, 16, 1);
+      } else if (type === 'roof_shingle') {
+        drawNoise('#9f1239', 12); ctx.fillStyle = '#881337';
+        for (let y = 0; y < 16; y += 4) ctx.fillRect(0, y, 16, 1);
+      } else if (type === 'window_pane') {
+        ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, 16, 16);
+        ctx.fillStyle = '#bae6fd'; ctx.fillRect(2, 2, 12, 12);
+      } else if (type === 'curtain_pink') {
+        drawNoise('#f472b6', 8); ctx.fillStyle = '#fda4af';
+        for (let x = 0; x < 16; x += 4) ctx.fillRect(x, 0, 2, 16);
+      } else if (type === 'pink_gingham') {
+        for (let x = 0; x < 16; x++) {
+          for (let y = 0; y < 16; y++) {
+            ctx.fillStyle = ((Math.floor(x / 4) + Math.floor(y / 4)) % 2 === 0) ? '#f472b6' : '#fff1f2';
+            ctx.fillRect(x, y, 1, 1);
+          }
+        }
+      } else if (type === 'pastry_display') {
+        ctx.fillStyle = '#fef08a'; ctx.fillRect(0, 0, 16, 16);
+        ctx.fillStyle = '#ef4444'; ctx.fillRect(2, 3, 4, 4);
+        ctx.fillStyle = '#84cc16'; ctx.fillRect(9, 3, 4, 4);
+        ctx.fillStyle = '#78350f'; ctx.fillRect(4, 9, 7, 4);
+      } else if (type === 'bookshelf') {
+        drawNoise('#b45309', 10); ctx.fillStyle = '#78350f';
+        ctx.fillRect(0, 0, 16, 2); ctx.fillRect(0, 7, 16, 2);
+        const colors = ['#f43f5e', '#0ea5e9', '#10b981', '#f59e0b', '#a855f7'];
+        for (let i = 0; i < 5; i++) { ctx.fillStyle = colors[i]; ctx.fillRect(1 + i * 3, 2, 2, 5); }
+      } else if (type === 'sakura_leaves') {
+        drawNoise('#f472b6', 22); ctx.fillStyle = '#fbcfe8';
+        ctx.fillRect(2, 3, 2, 2); ctx.fillRect(10, 7, 2, 2);
+      } else if (type === 'bush_topiary') {
+        drawNoise('#16a34a', 18); ctx.fillStyle = '#15803d';
+        ctx.fillRect(3, 3, 3, 3); ctx.fillRect(10, 8, 3, 3);
+      } else if (type === 'grass_lush') {
+        drawNoise('#22c55e', 14); ctx.fillStyle = '#fbcfe8';
+        ctx.fillRect(4, 5, 1, 1); ctx.fillRect(11, 11, 1, 1);
+      } else if (type === 'flower_pot') {
+        drawNoise('#ea580c', 12); ctx.fillStyle = '#9a3412'; ctx.fillRect(0, 0, 16, 3);
+      }
+
+      const texture = new THREE.CanvasTexture(canvas);
+      texture.magFilter = THREE.NearestFilter;
+      texture.minFilter = THREE.NearestFilter;
+      return texture;
+    }
+
+    function initMaterials() {
+      materials.sandstone = new THREE.MeshStandardMaterial({ map: createPixelCanvasTexture('sandstone_smooth'), roughness: 0.6 });
+      materials.sandstonePillar = new THREE.MeshStandardMaterial({ map: createPixelCanvasTexture('sandstone_pillar'), roughness: 0.5 });
+      materials.cyanMosaic = new THREE.MeshStandardMaterial({ map: createPixelCanvasTexture('cyan_mosaic'), roughness: 0.4 });
+      materials.slatePattern = new THREE.MeshStandardMaterial({ map: createPixelCanvasTexture('slate_pattern'), roughness: 0.7 });
+      materials.honeyPlanks = new THREE.MeshStandardMaterial({ map: createPixelCanvasTexture('honey_planks'), roughness: 0.5 });
+      materials.darkWood = new THREE.MeshStandardMaterial({ map: createPixelCanvasTexture('dark_wood'), roughness: 0.7 });
+      materials.whitePlaster = new THREE.MeshStandardMaterial({ map: createPixelCanvasTexture('white_plaster'), roughness: 0.4 });
+      materials.redBrick = new THREE.MeshStandardMaterial({ map: createPixelCanvasTexture('red_brick'), roughness: 0.65 });
+      materials.roofShingle = new THREE.MeshStandardMaterial({ map: createPixelCanvasTexture('roof_shingle'), roughness: 0.5 });
+      materials.windowPane = new THREE.MeshStandardMaterial({ map: createPixelCanvasTexture('window_pane'), transparent: true, opacity: 0.85 });
+      materials.curtainPink = new THREE.MeshStandardMaterial({ map: createPixelCanvasTexture('curtain_pink'), roughness: 0.6 });
+      materials.pinkGingham = new THREE.MeshStandardMaterial({ map: createPixelCanvasTexture('pink_gingham'), roughness: 0.6 });
+      materials.pastryDisplay = new THREE.MeshStandardMaterial({ map: createPixelCanvasTexture('pastry_display'), roughness: 0.4 });
+      materials.bookshelf = new THREE.MeshStandardMaterial({ map: createPixelCanvasTexture('bookshelf'), roughness: 0.6 });
+      materials.sakuraLeaves = new THREE.MeshStandardMaterial({ map: createPixelCanvasTexture('sakura_leaves'), transparent: true, opacity: 0.94 });
+      materials.bushTopiary = new THREE.MeshStandardMaterial({ map: createPixelCanvasTexture('bush_topiary'), roughness: 0.7 });
+      materials.grassLush = new THREE.MeshStandardMaterial({ map: createPixelCanvasTexture('grass_lush') });
+      materials.flowerPot = new THREE.MeshStandardMaterial({ map: createPixelCanvasTexture('flower_pot'), roughness: 0.8 });
+
+      materials.waterPool = new THREE.MeshStandardMaterial({ color: 0x06b6d4, roughness: 0.1, transparent: true, opacity: 0.75 });
+      materials.goldChandelier = new THREE.MeshStandardMaterial({ color: 0xf59e0b, metalness: 0.8, roughness: 0.2 });
+      materials.candleFlame = new THREE.MeshStandardMaterial({ color: 0xfef08a, emissive: 0xfde047, emissiveIntensity: 1.4 });
+      materials.whiteCeramic = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.2 });
+      materials.strawberryRed = new THREE.MeshStandardMaterial({ color: 0xe11d48, roughness: 0.4 });
+      materials.flowerRed = new THREE.MeshStandardMaterial({ color: 0xf43f5e, roughness: 0.5 });
+      materials.flowerYellow = new THREE.MeshStandardMaterial({ color: 0xfacc15, roughness: 0.5 });
+      materials.flowerPurple = new THREE.MeshStandardMaterial({ color: 0xa855f7, roughness: 0.5 });
+    }
+
+    function initScene() {
+      const container = document.getElementById('canvas-container');
+
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(0xfde8e8);
+      scene.fog = new THREE.FogExp2(0xfde8e8, 0.007);
+
+      camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
+      camera.position.set(24, 18, 28);
+
+      renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      container.appendChild(renderer.domElement);
+
+      controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+      controls.dampingFactor = 0.06;
+      controls.maxPolarAngle = Math.PI / 2 - 0.01;
+      controls.minDistance = 2.5;
+      controls.maxDistance = 60;
+      controls.target.set(0, 4, 0);
+
+      ambientLight = new THREE.AmbientLight(0xffedd5, 0.85);
+      scene.add(ambientLight);
+
+      hemisphereLight = new THREE.HemisphereLight(0xfce7f3, 0x854d0e, 0.7);
+      scene.add(hemisphereLight);
+
+      dirLight = new THREE.DirectionalLight(0xffedd5, 1.3);
+      dirLight.position.set(35, 52, 28);
+      dirLight.castShadow = true;
+      dirLight.shadow.bias = -0.0004;
+      dirLight.shadow.mapSize.width = 2048;
+      dirLight.shadow.mapSize.height = 2048;
+      scene.add(dirLight);
+
+      initMaterials();
+
+      coreGroup = new THREE.Group();
+      loftGroup = new THREE.Group();
+      roofGroup = new THREE.Group();
+      scene.add(coreGroup);
+      scene.add(loftGroup);
+      scene.add(roofGroup);
+
+      buildGrandVoxelWorld();
+      registerRigidWallColliders();
+      createSakuraPetalBreeze();
+      spawnDefaultLivingStaff();
+
+      window.addEventListener('resize', onWindowResize);
+    }
+
+    const sharedBoxGeo = new THREE.BoxGeometry(BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
+
+    function addVoxel(x, y, z, mat, layer = 'core', scale = [1, 1, 1]) {
+      const isScaled = scale[0] !== 1 || scale[1] !== 1 || scale[2] !== 1;
+      const geo = isScaled ? new THREE.BoxGeometry(BLOCK_SIZE * scale[0], BLOCK_SIZE * scale[1], BLOCK_SIZE * scale[2]) : sharedBoxGeo;
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.position.set(x, y, z);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+
+      if (layer === 'roof') roofGroup.add(mesh);
+      else if (layer === 'loft') loftGroup.add(mesh);
+      else coreGroup.add(mesh);
+      return mesh;
+    }
+
+    function addPointLight(x, y, z, color = 0xfde047, intensity = 1.4, distance = 8) {
+      const pLight = new THREE.PointLight(color, intensity, distance);
+      pLight.position.set(x, y, z);
+      scene.add(pLight);
+      return pLight;
+    }
+
+    // -------------------------------------------------------------
+    // BUILD SCENE & VOXEL STRUCTURES
+    // -------------------------------------------------------------
+    function buildGrandVoxelWorld() {
+      // 1. Terrain
+      for (let x = -28; x <= 28; x++) {
+        for (let z = -26; z <= 28; z++) {
+          let groundY = -0.5;
+          if ((x < -16 && z < -10) || (x > 18 && z < -10) || (z > 18 && Math.abs(x) > 12)) groundY = 0.5;
+          addVoxel(x, groundY, z, materials.grassLush, 'core');
+          addVoxel(x, groundY - 1, z, materials.darkWood, 'core');
+        }
+      }
+
+      // Walkway & Garden Patio
+      for (let z = 9; z <= 26; z++) {
+        for (let x = -2; x <= 2; x++) addVoxel(x, -0.48, z, materials.sandstone, 'core');
+      }
+      for (let px = 12; px <= 24; px++) {
+        for (let pz = 4; pz <= 18; pz++) addVoxel(px, -0.46, pz, materials.honeyPlanks, 'core');
+      }
+
+      // Parasol Lounge Sets
+      const buildParasol = (ux, uz) => {
+        for (let uy = 0.5; uy <= 4.5; uy++) addVoxel(ux, uy, uz, materials.darkWood, 'core', [0.15, 1, 0.15]);
+        for (let dx = -2; dx <= 2; dx++) {
+          for (let dz = -2; dz <= 2; dz++) {
+            if (Math.abs(dx) === 2 && Math.abs(dz) === 2) continue;
+            const py = (Math.abs(dx) === 2 || Math.abs(dz) === 2) ? 4.3 : 4.8;
+            addVoxel(ux + dx, py, uz + dz, materials.pinkGingham, 'core', [0.95, 0.2, 0.95]);
+          }
+        }
+        addVoxel(ux, 1.3, uz, materials.whitePlaster, 'core', [1.2, 0.1, 1.2]);
+        addVoxel(ux, 0.65, uz, materials.darkWood, 'core', [0.2, 1.2, 0.2]);
+        addVoxel(ux - 0.25, 1.45, uz, materials.whiteCeramic, 'core', [0.2, 0.2, 0.2]);
+        addVoxel(ux + 0.25, 1.42, uz, materials.strawberryRed, 'core', [0.25, 0.1, 0.25]);
+        addVoxel(ux - 1.1, 0.8, uz, materials.darkWood, 'core', [0.5, 0.4, 0.5]);
+        addVoxel(ux + 1.1, 0.8, uz, materials.darkWood, 'core', [0.5, 0.4, 0.5]);
+      };
+      buildParasol(16, 8);
+      buildParasol(20, 14);
+
+      // Sakura Trees
+      const buildSakura = (tx, tz, trunkH) => {
+        for (let ty = 0.5; ty <= trunkH; ty++) addVoxel(tx, ty, tz, materials.darkWood, 'core');
+        for (let lx = -3; lx <= 3; lx++) {
+          for (let lz = -3; lz <= 3; lz++) {
+            for (let ly = trunkH - 1; ly <= trunkH + 3; ly++) {
+              if (Math.abs(lx) === 3 && Math.abs(lz) === 3) continue;
+              if (ly === trunkH + 3 && (Math.abs(lx) > 1 || Math.abs(lz) > 1)) continue;
+              if (lx === 0 && lz === 0 && ly <= trunkH) continue;
+              addVoxel(tx + lx, ly, tz + lz, materials.sakuraLeaves, 'core');
+            }
+          }
+        }
+      };
+      buildSakura(-21, 16, 7);
+      buildSakura(-22, -12, 8);
+      buildSakura(23, -14, 8);
+      buildSakura(24, 21, 7);
+
+      // Main Building (X: -15 to 15, Z: -16 to 8)
+      const minX = -15, maxX = 15, minZ = -16, maxZ = 8;
+      for (let x = minX; x <= maxX; x++) {
+        for (let z = minZ; z <= maxZ; z++) {
+          if (x >= -4 && x <= 4 && z >= -7 && z <= 1) {
+            addVoxel(x, -0.4, z, materials.slatePattern, 'core');
+            addVoxel(x, 0.4, z, materials.waterPool, 'core', [1, 0.7, 1]);
+            continue;
+          }
+          if ((Math.abs(x) === 5 && z >= -8 && z <= 2) || (Math.abs(z - (-3)) === 5 && x >= -5 && x <= 5)) {
+            addVoxel(x, 0.5, z, materials.cyanMosaic, 'core');
+          } else if (x > 6) {
+            addVoxel(x, 0.5, z, materials.honeyPlanks, 'core');
+          } else {
+            addVoxel(x, 0.5, z, materials.sandstone, 'core');
+          }
+        }
+      }
+
+      // 4 Topiary Pillars around pool
+      [{ x: -4, z: -7 }, { x: 4, z: -7 }, { x: -4, z: 1 }, { x: 4, z: 1 }].forEach(pc => {
+        addVoxel(pc.x, 0.9, pc.z, materials.slatePattern, 'core', [0.8, 0.8, 0.8]);
+        addVoxel(pc.x, 2.0, pc.z, materials.bushTopiary, 'core', [0.75, 1.4, 0.75]);
+      });
+
+      // Hanging Grand Chandelier
+      const chanX = 0, chanY = 8.5, chanZ = -3;
+      for (let cy = chanY + 4; cy >= chanY + 1; cy--) addVoxel(chanX, cy, chanZ, materials.darkWood, 'core', [0.15, 1.0, 0.15]);
+      for (let dx = -2; dx <= 2; dx++) {
+        for (let dz = -2; dz <= 2; dz++) {
+          if (Math.abs(dx) === 2 || Math.abs(dz) === 2) {
+            addVoxel(chanX + dx, chanY, chanZ + dz, materials.goldChandelier, 'core', [0.35, 0.2, 0.35]);
+            addVoxel(chanX + dx, chanY + 0.4, chanZ + dz, materials.candleFlame, 'core', [0.2, 0.4, 0.2]);
+          }
+        }
+      }
+      addPointLight(chanX, chanY + 0.5, chanZ, 0xfde047, 2.8, 16);
+
+      // Ground Floor Walls & Large Windows
+      for (let y = 1.5; y <= 6.5; y++) {
+        for (let x = minX; x <= maxX; x++) {
+          for (let z = minZ; z <= maxZ; z++) {
+            if (!(x === minX || x === maxX || z === minZ || z === maxZ)) continue;
+            if (z === maxZ && x >= -2 && x <= 2 && y <= 5.5) continue; // Entrance
+
+            const isLargeWindow = (
+              ((x === minX || x === maxX) && (z === -11 || z === -4 || z === 3) && (y >= 2.5 && y <= 5.5)) ||
+              (z === maxZ && (x === -8 || x === 8) && (y >= 2.5 && y <= 5.5))
+            );
+
+            if (isLargeWindow) {
+              addVoxel(x, y, z, materials.windowPane, 'core');
+              if (x === maxX || x === minX) {
+                addVoxel(x + (x === maxX ? -0.4 : 0.4), y, z - 0.7, materials.curtainPink, 'core', [0.15, 0.95, 0.45]);
+                addVoxel(x + (x === maxX ? -0.4 : 0.4), y, z + 0.7, materials.curtainPink, 'core', [0.15, 0.95, 0.45]);
+              }
+              continue;
+            }
+            addVoxel(x, y, z, (x % 5 === 0 ? materials.sandstonePillar : materials.redBrick), 'core');
+          }
+        }
+      }
+
+      // Bakery Service Counter
+      for (let bx = 8; bx <= 13; bx++) {
+        addVoxel(bx, 1.4, -9, materials.darkWood, 'core', [0.95, 0.8, 0.95]);
+        addVoxel(bx, 1.85, -9, materials.sandstone, 'core', [1.0, 0.1, 1.0]);
+      }
+      addVoxel(11, 2.3, -9, materials.pastryDisplay, 'core', [2.8, 0.8, 0.7]);
+      addVoxel(8.5, 2.3, -7, materials.goldChandelier, 'core', [0.6, 0.7, 0.7]);
+      addVoxel(12.8, 2.02, -9, materials.strawberryRed, 'core', [0.35, 0.12, 0.35]);
+
+      // Grand Stairs
+      for (let s = 0; s <= 9; s++) {
+        const sy = 0.5 + s * 0.7;
+        const sz = 4 - s * 1.2;
+        for (let sx = -14; sx <= -11; sx++) {
+          addVoxel(sx, sy, sz, materials.sandstone, 'core', [0.95, 0.35, 1.15]);
+          addVoxel(sx, sy / 2, sz, materials.honeyPlanks, 'core', [0.95, sy, 1.15]);
+        }
+        addVoxel(-10.5, sy + 0.6, sz, materials.darkWood, 'core', [0.2, 0.8, 1.15]);
+        if (s % 2 === 0) {
+          addVoxel(-10.5, sy + 1.15, sz, materials.flowerPot, 'core', [0.35, 0.35, 0.35]);
+          addVoxel(-10.5, sy + 1.45, sz, materials.flowerYellow, 'core', [0.3, 0.3, 0.3]);
+        }
+      }
+
+      // Second Floor / Mezzanine (Y = 7.0)
+      for (let x = minX; x <= maxX; x++) {
+        for (let z = minZ; z <= maxZ; z++) {
+          if (x >= -4 && x <= 4 && z >= -7 && z <= 1) continue;
+          if (x >= -14 && x <= -11 && z >= -10 && z <= -5) continue;
+          addVoxel(x, 7.0, z, materials.honeyPlanks, 'loft');
+        }
+      }
+      for (let y = 7.5; y <= 12.5; y++) {
+        for (let x = minX; x <= maxX; x++) {
+          for (let z = minZ; z <= maxZ; z++) {
+            if (!(x === minX || x === maxX || z === minZ || z === maxZ)) continue;
+            if (z === maxZ && Math.abs(x) <= 3 && y >= 9.0 && y <= 11.5) {
+              addVoxel(x, y, z, materials.windowPane, 'loft');
+              continue;
+            }
+            addVoxel(x, y, z, materials.whitePlaster, 'loft');
+          }
+        }
+      }
+
+      // Bookshelves & Loft Lounge
+      for (let bx = -13; bx <= -6; bx++) addVoxel(bx, 8.5, minZ + 0.6, materials.bookshelf, 'loft', [1.0, 2.0, 0.5]);
+      addVoxel(10, 7.05, -3, materials.pinkGingham, 'loft', [4.0, 0.05, 4.0]);
+      addVoxel(10, 7.35, -3, materials.darkWood, 'loft', [1.8, 0.35, 1.8]);
+      addVoxel(10, 7.6, -3, materials.whiteCeramic, 'loft', [0.35, 0.25, 0.35]);
+
+      // Slanted Roof
+      const roofStartY = 13.0;
+      const roofMidZ = (minZ + maxZ) / 2;
+      for (let x = minX - 1; x <= maxX + 1; x++) {
+        for (let z = maxZ + 1; z >= minZ - 1; z--) {
+          const ry = roofStartY + (13 - Math.abs(z - roofMidZ)) * 0.65;
+          addVoxel(x, ry, z, materials.roofShingle, 'roof');
+        }
+      }
+    }
+
+    // -------------------------------------------------------------
+    // 1. RIGID WALL COLLIDERS (FOR CAMERA & CHARACTERS)
+    // -------------------------------------------------------------
+    function registerRigidWallColliders() {
+      // Helper: Bounding Box
+      const addCollider = (min, max) => {
+        wallColliders.push(new THREE.Box3(min, max));
+      };
+
+      // Outer Main Walls
+      addCollider(new THREE.Vector3(-15.5, 0, -16.5), new THREE.Vector3(-14.5, 14, 8.5)); // West Wall
+      addCollider(new THREE.Vector3(14.5, 0, -16.5), new THREE.Vector3(15.5, 14, 8.5));  // East Wall
+      addCollider(new THREE.Vector3(-15.5, 0, -16.5), new THREE.Vector3(15.5, 14, -15.5)); // North Wall
+      
+      // South Front Wall (Left and Right Wings, leaving entrance at X: -2.5 to 2.5)
+      addCollider(new THREE.Vector3(-15.5, 0, 7.5), new THREE.Vector3(-2.5, 14, 8.5));
+      addCollider(new THREE.Vector3(2.5, 0, 7.5), new THREE.Vector3(15.5, 14, 8.5));
+
+      // Bakery Service Counter & Kitchen Wall
+      addCollider(new THREE.Vector3(7.5, 0, -9.5), new THREE.Vector3(13.5, 2.8, -8.5));
+      addCollider(new THREE.Vector3(7.5, 0, -9.5), new THREE.Vector3(8.5, 2.8, -5.0));
+
+      // Reflecting Pool Basin (Characters cannot walk into water pool)
+      addCollider(new THREE.Vector3(-4.2, 0, -7.2), new THREE.Vector3(4.2, 1.2, 1.2));
+    }
+
+    // Check collision against rigid world
+    function checkRigidCollision(pos, radius = 0.35) {
+      const charBox = new THREE.Box3(
+        new THREE.Vector3(pos.x - radius, pos.y, pos.z - radius),
+        new THREE.Vector3(pos.x + radius, pos.y + 2.0, pos.z + radius)
+      );
+
+      for (let i = 0; i < wallColliders.length; i++) {
+        if (wallColliders[i].intersectsBox(charBox)) {
+          return true;
+        }
+      }
+      return false;
+    }
+
+    // Camera Rigid Clamping (Prevents camera passing through walls/roof)
+    function enforceRigidCameraBounds() {
+      if (!controls) return;
+      const target = controls.target;
+      const camPos = camera.position;
+
+      // Raycast from target to camera
+      const dir = camPos.clone().sub(target);
+      const dist = dir.length();
+      dir.normalize();
+
+      const ray = new THREE.Ray(target, dir);
+      let closestHitDist = dist;
+
+      for (let i = 0; i < wallColliders.length; i++) {
+        const box = wallColliders[i];
+        const hitPoint = new THREE.Vector3();
+        if (ray.intersectBox(box, hitPoint)) {
+          const hitDist = hitPoint.distanceTo(target);
+          if (hitDist < closestHitDist && hitDist > 1.2) {
+            closestHitDist = hitDist - 0.45; // Margin
+          }
+        }
+      }
+
+      if (closestHitDist < dist) {
+        camera.position.copy(target.clone().addScaledVector(dir, closestHitDist));
+      }
+
+      // Height Floor/Ceiling Clamping
+      if (camera.position.y < 1.2) camera.position.y = 1.2;
+      if (camera.position.y > 38) camera.position.y = 38;
+    }
+
+    // -------------------------------------------------------------
+    // 2 & 3. GEMINI AI AGENT SYSTEM (PER-CHARACTER INTELLIGENCE)
+    // -------------------------------------------------------------
+    class AIAgent {
+      constructor(npc, apiKey, role, name) {
+        this.npc = npc;
+        this.apiKey = apiKey.trim();
+        this.role = role;
+        this.name = name;
+        this.modelName = document.getElementById('input-model-name').value.trim() || 'gemini-3.5-flash-lite';
+        this.currentTask = 'Starting daily routine...';
+        this.isThinking = false;
+        this.lastDecisionTime = 0;
+        this.decisionInterval = 9000 + Math.random() * 4000; // Decisions every 9-13s
+      }
+
+      async makeAIDecision() {
+        if (this.isThinking) return;
+        this.isThinking = true;
+
+        const availablePOIs = Object.keys(POIS);
+        const nearbyStaff = activeNPCs
+          .filter(n => n.id !== this.npc.id)
+          .map(n => `${n.name} (${n.role})`)
+          .join(', ');
+
+        const systemPrompt = `
+You are the AI brain governing the character "${this.name}" whose assigned role is "${this.role}" in Sakura Grand Voxel Cafe.
+${ROLE_PROMPTS[this.role]}
+
+Nearby active cafe characters: ${nearbyStaff || 'None currently'}.
+Available Navigation POIs: ${availablePOIs.join(', ')}.
+
+Respond ONLY in valid raw JSON with no markdown wrapping:
+{
+  "thought": "Internal quick reflection about your chore or interaction (max 8 words)",
+  "dialogue": "Short sentence to say aloud with an emoji (max 10 words)",
+  "targetPOI": "exact key from available POIs matching your chore",
+  "actionName": "short name of chore (e.g. brewing latte, taking orders, cleaning)"
+}`;
+
+        // If no API Key configured for this character, use smart simulated fallback
+        if (!this.apiKey || this.apiKey.length < 8) {
+          this.executeSimulatedDecision();
+          this.isThinking = false;
+          return;
+        }
+
+        try {
+          const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${this.modelName}:generateContent?key=${this.apiKey}`;
+          const response = await fetch(endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [{ parts: [{ text: systemPrompt }] }],
+              generationConfig: { responseMimeType: 'application/json', temperature: 0.7 }
+            })
+          });
+
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          const data = await response.json();
+          const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+          const parsed = JSON.parse(rawText);
+
+          this.applyAction(parsed);
+        } catch (err) {
+          console.warn(`[AI Engine ${this.name}] Falling back to simulated behavior:`, err.message);
+          this.executeSimulatedDecision();
+        } finally {
+          this.isThinking = false;
+        }
+      }
+
+      executeSimulatedDecision() {
+        // High quality simulated routines per role
+        const roleRoutines = {
+          manager: [
+            { thought: "Checking on bakery stock.", dialogue: "The cafe looks wonderful today! 🌸", targetPOI: "pastry_counter", actionName: "Inspecting" },
+            { thought: "Greeting new arrivals.", dialogue: "Welcome to Sakura Cafe! Enjoy your stay ✨", targetPOI: "entrance_porch", actionName: "Greeting" },
+            { thought: "Reviewing accounting registers.", dialogue: "All transactions balanced nicely 📊", targetPOI: "manager_station", actionName: "Auditing" }
+          ],
+          cafeterian: [
+            { thought: "Arranging matcha sponge rolls.", dialogue: "Fresh strawberry shortcake slice ready! 🍰", targetPOI: "pastry_counter", actionName: "Plating Cakes" },
+            { thought: "Processing table payment.", dialogue: "Thank you so much, have a sweet day! 💳", targetPOI: "cash_register", actionName: "Cashiering" }
+          ],
+          cook: [
+            { thought: "Pulling double espresso shot.", dialogue: "Sakura Vanilla Latte brewing! ☕", targetPOI: "espresso_bar", actionName: "Brewing Latte" },
+            { thought: "Baking fresh berry tarts.", dialogue: "Oven hot! Berry tarts smell amazing 🥐", targetPOI: "kitchen_prep", actionName: "Baking" }
+          ],
+          waiter: [
+            { thought: "Taking order from Table 1.", dialogue: "May I take your order today? 📝", targetPOI: "dining_table_1", actionName: "Taking Orders" },
+            { thought: "Serving latte to Garden Patio.", dialogue: "Here is your hot latte and pastry! ☕", targetPOI: "patio_table_1", actionName: "Serving" }
+          ],
+          maid: [
+            { thought: "Cleaning dishware at the sink.", dialogue: "Sparkling clean teacups ready! 🫧", targetPOI: "dish_sink", actionName: "Washing Dishes" },
+            { thought: "Pruning blossom bushes.", dialogue: "Watering the cute bonsai plants 🌸", targetPOI: "garden_flowers", actionName: "Gardening" }
+          ],
+          guest: [
+            { thought: "Looking for a cozy sun table.", dialogue: "This patio table has such a great view! 🌺", targetPOI: "patio_table_2", actionName: "Relaxing" },
+            { thought: "Enjoying the pool atmosphere.", dialogue: "The reflecting pool is so peaceful 💧", targetPOI: "reflecting_pool_side", actionName: "Lounging" },
+            { thought: "Reading in the quiet loft.", dialogue: "Love reading by the sakura window 📖", targetPOI: "loft_library", actionName: "Reading" }
+          ]
+        };
+
+        const list = roleRoutines[this.role] || roleRoutines.guest;
+        const choice = list[Math.floor(Math.random() * list.length)];
+        this.applyAction(choice);
+      }
+
+      applyAction(actionData) {
+        this.currentTask = actionData.actionName || 'Chores';
+        
+        // Show 3D speech bubble
+        if (actionData.dialogue) {
+          showFloatingSpeechBubble(this.npc, actionData.dialogue);
+          logActivityFeed(`${this.name} (${this.role}): "${actionData.dialogue}"`);
+        }
+
+        // Set Navigation Target
+        if (actionData.targetPOI && POIS[actionData.targetPOI]) {
+          this.npc.targetPos = POIS[actionData.targetPOI].clone();
+          // Add gentle random offset around POI so staff don't stack on exact same spot
+          this.npc.targetPos.x += (Math.random() - 0.5) * 1.2;
+          this.npc.targetPos.z += (Math.random() - 0.5) * 1.2;
+          this.npc.isWalking = true;
+        }
+      }
+    }
+
+    // -------------------------------------------------------------
+    // 3. 3D SPEECH BUBBLES & ACTIVITY LOG
+    // -------------------------------------------------------------
+    function showFloatingSpeechBubble(npc, text) {
+      // Remove old bubble if exists
+      if (npc.bubbleSprite) {
+        npc.mesh.remove(npc.bubbleSprite);
+      }
+
+      const canvas = document.createElement('canvas');
+      canvas.width = 384; canvas.height = 128;
+      const ctx = canvas.getContext('2d');
+
+      // Cute Rounded Cloud Bubble
+      ctx.fillStyle = 'rgba(255, 245, 249, 0.95)';
+      ctx.strokeStyle = '#db2777';
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.roundRect(12, 12, 360, 90, 20);
+      ctx.fill(); ctx.stroke();
+
+      // Tail
+      ctx.beginPath();
+      ctx.moveTo(170, 102); ctx.lineTo(192, 124); ctx.lineTo(214, 102);
+      ctx.fill(); ctx.stroke();
+
+      // Text
+      ctx.fillStyle = '#831843';
+      ctx.font = 'bold 22px Fredoka, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(text, 192, 62);
+
+      const texture = new THREE.CanvasTexture(canvas);
+      const spriteMat = new THREE.SpriteMaterial({ map: texture, transparent: true });
+      const sprite = new THREE.Sprite(spriteMat);
+      sprite.position.set(0, 2.6, 0);
+      sprite.scale.set(3.2, 1.1, 1);
+
+      npc.mesh.add(sprite);
+      npc.bubbleSprite = sprite;
+
+      // Auto fade out bubble after 4.5s
+      setTimeout(() => {
+        if (npc.bubbleSprite === sprite) {
+          npc.mesh.remove(sprite);
+          npc.bubbleSprite = null;
+        }
+      }, 4500);
+    }
+
+    function logActivityFeed(msg) {
+      const feed = document.getElementById('activity-feed');
+      const item = document.createElement('div');
+      item.className = 'bg-pink-900/80 backdrop-blur-md text-pink-100 text-[11px] px-3 py-1.5 rounded-xl border border-pink-400/40 shadow-lg speech-bubble';
+      item.innerText = msg;
+      feed.prepend(item);
+
+      if (feed.children.length > 3) {
+        feed.removeChild(feed.lastChild);
+      }
+    }
+
+    // -------------------------------------------------------------
+    // 4. VOXEL NPC SPAWNING & RIGID WALKING SYSTEM
+    // -------------------------------------------------------------
+    function createVoxelNPCMesh(role, colorHex, name) {
+      const npcGroup = new THREE.Group();
+      const skinMat = new THREE.MeshStandardMaterial({ color: 0xffdbac, roughness: 0.7 });
+      const outfitMat = new THREE.MeshStandardMaterial({ color: colorHex, roughness: 0.6 });
+      const darkMat = new THREE.MeshStandardMaterial({ color: 0x381604 });
+
+      // Head
+      const head = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.48, 0.48), skinMat);
+      head.position.y = 1.35; head.castShadow = true;
+      npcGroup.add(head);
+
+      // Hair
+      const hair = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.22, 0.52), darkMat);
+      hair.position.set(0, 1.52, 0); npcGroup.add(hair);
+
+      // Torso
+      const torso = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.72, 0.24), outfitMat);
+      torso.position.y = 0.77; torso.castShadow = true;
+      npcGroup.add(torso);
+
+      // Limbs
+      const armL = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.7, 0.2), skinMat);
+      armL.position.set(-0.35, 0.77, 0);
+      const armR = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.7, 0.2), skinMat);
+      armR.position.set(0.35, 0.77, 0);
+      const legL = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.7, 0.2), outfitMat);
+      legL.position.set(-0.12, 0.35, 0);
+      const legR = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.7, 0.2), outfitMat);
+      legR.position.set(0.12, 0.35, 0);
+
+      npcGroup.add(armL, armR, legL, legR);
+
+      // Role Props
+      if (role === 'cook') {
+        const chefHat = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.4, 0.36), materials.whiteCeramic);
+        chefHat.position.set(0, 1.75, 0); npcGroup.add(chefHat);
+      } else if (role === 'cafeterian') {
+        const visor = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.1, 0.35), materials.pinkGingham);
+        visor.position.set(0, 1.55, 0.15); npcGroup.add(visor);
+      } else if (role === 'waiter') {
+        const tray = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.04, 0.35), materials.sandstone);
+        tray.position.set(0.35, 0.8, 0.25);
+        const cup = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.15, 0.12), materials.whiteCeramic);
+        cup.position.set(0.35, 0.9, 0.25);
+        npcGroup.add(tray, cup);
+      } else if (role === 'maid') {
+        const headband = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.1, 0.15), materials.whiteCeramic);
+        headband.position.set(0, 1.62, 0); npcGroup.add(headband);
+      }
+
+      // Name Tag Badge
+      const tagCanvas = document.createElement('canvas');
+      tagCanvas.width = 256; tagCanvas.height = 64;
+      const tCtx = tagCanvas.getContext('2d');
+      tCtx.fillStyle = 'rgba(131, 24, 67, 0.88)';
+      tCtx.roundRect(10, 10, 236, 44, 12); tCtx.fill();
+      tCtx.fillStyle = '#ffffff';
+      tCtx.font = 'bold 20px Fredoka, sans-serif';
+      tCtx.textAlign = 'center';
+      tCtx.fillText(`${name} (${role})`, 128, 38);
+
+      const tagTex = new THREE.CanvasTexture(tagCanvas);
+      const tagSprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tagTex, transparent: true }));
+      tagSprite.position.set(0, 2.05, 0);
+      tagSprite.scale.set(2.0, 0.5, 1);
+      npcGroup.add(tagSprite);
+
+      return {
+        group: npcGroup,
+        parts: { armL, armR, legL, legR }
+      };
+    }
+
+    function spawnNPC(role, name, color, apiKey = '', customPos = null) {
+      const currentCount = activeNPCs.filter(n => n.role === role).length;
+      if (currentCount >= ROLE_LIMITS[role]) {
+        alert(`Limit reached for ${role} (Max ${ROLE_LIMITS[role]}).`);
+        return false;
+      }
+
+      const id = 'npc_' + Date.now() + '_' + Math.floor(Math.random() * 1000);
+      const { group, parts } = createVoxelNPCMesh(role, color, name);
+
+      let pos = customPos ? customPos.clone() : POIS.entrance_porch.clone();
+      if (!customPos) {
+        if (role === 'manager') pos.copy(POIS.manager_station);
+        else if (role === 'cafeterian') pos.copy(POIS.pastry_counter);
+        else if (role === 'cook') pos.copy(POIS.espresso_bar);
+        else if (role === 'waiter') pos.copy(POIS.dining_table_1);
+        else if (role === 'maid') pos.copy(POIS.dish_sink);
+        else if (role === 'guest') pos.copy(POIS.patio_table_1);
+      }
+
+      group.position.copy(pos);
+      scene.add(group);
+
+      const npcObj = {
+        id, name, role, color, apiKey,
+        mesh: group,
+        parts: parts,
+        currentPos: pos.clone(),
+        targetPos: pos.clone(),
+        isWalking: false,
+        walkAnimTime: 0,
+        bubbleSprite: null
+      };
+
+      // Connect AI brain
+      npcObj.ai = new AIAgent(npcObj, apiKey, role, name);
+      activeNPCs.push(npcObj);
+
+      updateUIRoster();
+      logActivityFeed(`✨ ${name} the ${role} has arrived!`);
+      return true;
+    }
+
+    function removeNPC(id) {
+      const idx = activeNPCs.findIndex(n => n.id === id);
+      if (idx !== -1) {
+        scene.remove(activeNPCs[idx].mesh);
+        activeNPCs.splice(idx, 1);
+        updateUIRoster();
+      }
+    }
+
+    function spawnDefaultLivingStaff() {
+      spawnNPC('manager', 'Clara', '#be185d', '', POIS.manager_station);
+      spawnNPC('cafeterian', 'Hana', '#f472b6', '', POIS.pastry_counter);
+      spawnNPC('cook', 'Oliver', '#059669', '', POIS.espresso_bar);
+      spawnNPC('waiter', 'Leo', '#0284c7', '', POIS.dining_table_1);
+      spawnNPC('maid', 'Sophie', '#6366f1', '', POIS.dish_sink);
+      spawnNPC('guest', 'Aria', '#ec4899', '', POIS.patio_table_1);
+      spawnNPC('guest', 'Kenji', '#eab308', '', POIS.patio_table_2);
+    }
+
+    // -------------------------------------------------------------
+    // 5. UPDATE LOOP: RIGID PATHFINDING & AI DECISION CYCLES
+    // -------------------------------------------------------------
+    function updateNPCs(delta, now) {
+      activeNPCs.forEach((npc) => {
+        // AI Brain Cycle Trigger
+        if (now - npc.ai.lastDecisionTime > npc.ai.decisionInterval) {
+          npc.ai.lastDecisionTime = now;
+          npc.ai.makeAIDecision();
+        }
+
+        // Autonomous Navigation with Rigid Wall Avoidance
+        if (npc.isWalking && npc.targetPos) {
+          const moveDir = npc.targetPos.clone().sub(npc.currentPos);
+          moveDir.y = 0; // Ground plane walk
+          const dist = moveDir.length();
+
+          if (dist > 0.3) {
+            moveDir.normalize();
+            const step = moveDir.clone().multiplyScalar(3.2 * delta);
+            const nextPos = npc.currentPos.clone().add(step);
+
+            // Rigid Wall Check: only step if no collision
+            if (!checkRigidCollision(nextPos)) {
+              npc.currentPos.copy(nextPos);
+            } else {
+              // Slide around or stop
+              npc.isWalking = false;
+            }
+
+            npc.mesh.position.x = npc.currentPos.x;
+            npc.mesh.position.z = npc.currentPos.z;
+
+            // Rotation towards movement
+            npc.mesh.rotation.y = Math.atan2(moveDir.x, moveDir.z);
+
+            // Limb Swing Animation
+            npc.walkAnimTime += delta * 10;
+            const swing = Math.sin(npc.walkAnimTime) * 0.6;
+            npc.parts.armL.rotation.x = swing;
+            npc.parts.armR.rotation.x = -swing;
+            npc.parts.legL.rotation.x = -swing;
+            npc.parts.legR.rotation.x = swing;
+          } else {
+            npc.isWalking = false;
+            npc.parts.armL.rotation.x = 0;
+            npc.parts.armR.rotation.x = 0;
+            npc.parts.legL.rotation.x = 0;
+            npc.parts.legR.rotation.x = 0;
+          }
+        }
+      });
+    }
+
+    // -------------------------------------------------------------
+    // 6. SAKURA PETALS & AMBIENT MUSIC
+    // -------------------------------------------------------------
+    function createSakuraPetalBreeze() {
+      const petalGeo = new THREE.BufferGeometry();
+      petalPosArray = new Float32Array(PETAL_COUNT * 3);
+      for (let i = 0; i < PETAL_COUNT * 3; i += 3) {
+        petalPosArray[i] = (Math.random() - 0.5) * 55;
+        petalPosArray[i + 1] = Math.random() * 22;
+        petalPosArray[i + 2] = (Math.random() - 0.5) * 55;
+      }
+      petalGeo.setAttribute('position', new THREE.BufferAttribute(petalPosArray, 3));
+
+      const pCanvas = document.createElement('canvas');
+      pCanvas.width = 16; pCanvas.height = 16;
+      const pCtx = pCanvas.getContext('2d');
+      pCtx.fillStyle = '#f472b6';
+      pCtx.beginPath(); pCtx.ellipse(8, 8, 7, 4, Math.PI / 4, 0, 2 * Math.PI); pCtx.fill();
+
+      const petalMat = new THREE.PointsMaterial({
+        size: 0.65,
+        map: new THREE.CanvasTexture(pCanvas),
+        transparent: true,
+        opacity: 0.88,
+        depthWrite: false
+      });
+      petalParticles = new THREE.Points(petalGeo, petalMat);
+      scene.add(petalParticles);
+    }
+
+    function updateSakuraPetals(delta) {
+      if (!petalParticles) return;
+      const positions = petalParticles.geometry.attributes.position.array;
+      for (let i = 0; i < PETAL_COUNT * 3; i += 3) {
+        positions[i + 1] -= delta * 1.8;
+        positions[i] += Math.sin(positions[i + 1] * 0.8 + i) * delta * 1.5;
+        positions[i + 2] += Math.cos(positions[i + 1] * 0.8 + i) * delta * 1.2;
+        if (positions[i + 1] < 0) {
+          positions[i + 1] = 22;
+          positions[i] = (Math.random() - 0.5) * 55;
+          positions[i + 2] = (Math.random() - 0.5) * 55;
+        }
+      }
+      petalParticles.geometry.attributes.position.needsUpdate = true;
+    }
+
+    // Procedural Lo-Fi Synth
+    let audioCtx = null;
+    let isMusicPlaying = false;
+    let musicInterval = null;
+    const chords = [
+      [261.63, 329.63, 392.00, 493.88],
+      [220.00, 261.63, 329.63, 392.00],
+      [293.66, 349.23, 440.00, 523.25],
+      [196.00, 246.94, 293.66, 349.23]
+    ];
+    let chordIdx = 0;
+
+    function playCozyChordNote(freq, time, dur = 1.2) {
+      if (!audioCtx) return;
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      const filter = audioCtx.createBiquadFilter();
+
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(freq, time);
+
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(750, time);
+
+      gain.gain.setValueAtTime(0.001, time);
+      gain.gain.exponentialRampToValueAtTime(0.05, time + 0.15);
+      gain.gain.exponentialRampToValueAtTime(0.0001, time + dur);
+
+      osc.connect(filter);
+      filter.connect(gain);
+      gain.connect(audioCtx.destination);
+
+      osc.start(time);
+      osc.stop(time + dur);
+    }
+
+    function triggerLoFiMusicLoop() {
+      if (!audioCtx) return;
+      const now = audioCtx.currentTime;
+      const currentChord = chords[chordIdx];
+      chordIdx = (chordIdx + 1) % chords.length;
+
+      currentChord.forEach((f, i) => playCozyChordNote(f, now + i * 0.12, 2.2));
+      playCozyChordNote(currentChord[Math.floor(Math.random() * currentChord.length)] * 2, now + 0.8, 0.9);
+    }
+
+    function toggleMusic() {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+
+      isMusicPlaying = !isMusicPlaying;
+      const audioIcon = document.getElementById('audio-icon');
+      if (isMusicPlaying) {
+        audioIcon.className = 'fa-solid fa-volume-high text-pink-200';
+        triggerLoFiMusicLoop();
+        musicInterval = setInterval(triggerLoFiMusicLoop, 2400);
+      } else {
+        audioIcon.className = 'fa-solid fa-volume-xmark';
+        clearInterval(musicInterval);
+      }
+    }
+
+    // -------------------------------------------------------------
+    // 7. UI MODAL & ROSTER MANAGEMENT
+    // -------------------------------------------------------------
+    function updateUIRoster() {
+      const counts = { manager: 0, cafeterian: 0, cook: 0, waiter: 0, maid: 0, guest: 0 };
+      activeNPCs.forEach(n => counts[n.role]++);
+
+      document.getElementById('total-npc-count').innerText = activeNPCs.length;
+      document.getElementById('badge-manager').innerText = `${counts.manager}/1`;
+      document.getElementById('badge-cafeterian').innerText = `${counts.cafeterian}/2`;
+      document.getElementById('badge-cook').innerText = `${counts.cook}/2`;
+      document.getElementById('badge-waiter').innerText = `${counts.waiter}/4`;
+      document.getElementById('badge-maid').innerText = `${counts.maid}/2`;
+      document.getElementById('badge-guest').innerText = `${counts.guest}/∞`;
+
+      const listContainer = document.getElementById('npc-list-container');
+      listContainer.innerHTML = '';
+
+      if (activeNPCs.length === 0) {
+        listContainer.innerHTML = '<p class="text-xs text-pink-400 italic py-2 text-center">No characters currently spawned.</p>';
+        return;
+      }
+
+      activeNPCs.forEach(npc => {
+        const row = document.createElement('div');
+        row.className = 'p-2.5 rounded-2xl bg-pink-50 border border-pink-200 text-xs flex flex-col gap-1.5';
+        const keyBadge = npc.apiKey && npc.apiKey.length > 5
+          ? '<span class="text-[9px] bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded font-bold">🔑 AI Key Active</span>'
+          : '<span class="text-[9px] bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded font-bold">🤖 Simulated AI</span>';
+
+        row.innerHTML = `
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <span class="w-3.5 h-3.5 rounded-full border border-pink-400" style="background-color: ${npc.color}"></span>
+              <span class="font-bold text-pink-900">${npc.name}</span>
+              <span class="text-[10px] px-1.5 py-0.5 rounded uppercase font-extrabold bg-pink-200 text-pink-800">${npc.role}</span>
+              ${keyBadge}
+            </div>
+            <div class="flex items-center gap-1.5">
+              <button onclick="teleportCameraToNPC('${npc.id}')" class="px-2 py-1 bg-pink-200 hover:bg-pink-300 text-pink-800 rounded-lg font-bold" title="Inspect NPC">
+                <i class="fa-solid fa-eye"></i> Focus
+              </button>
+              <button onclick="removeNPC('${npc.id}')" class="px-2 py-1 bg-rose-200 hover:bg-rose-300 text-rose-800 rounded-lg font-bold" title="Dismiss NPC">
+                <i class="fa-solid fa-trash"></i>
+              </button>
+            </div>
+          </div>
+          <!-- Inline Per-Character Key Edit -->
+          <div class="flex items-center gap-2 pt-1 border-t border-pink-100">
+            <span class="text-[10px] text-pink-600 font-bold whitespace-nowrap">Key:</span>
+            <input type="password" value="${npc.apiKey || ''}" placeholder="Enter individual Gemini key..." 
+                   onchange="updateNPCKey('${npc.id}', this.value)"
+                   class="game-input flex-1 px-2 py-0.5 rounded-lg text-[10px] font-mono">
+          </div>
+        `;
+        listContainer.appendChild(row);
+      });
+    }
+
+    window.updateNPCKey = (id, newKey) => {
+      const npc = activeNPCs.find(n => n.id === id);
+      if (npc) {
+        npc.apiKey = newKey.trim();
+        npc.ai.apiKey = newKey.trim();
+        updateUIRoster();
+      }
+    };
+
+    window.teleportCameraToNPC = (id) => {
+      const npc = activeNPCs.find(n => n.id === id);
+      if (!npc) return;
+      document.getElementById('modal-settings').classList.add('hidden');
+      const targetPos = npc.mesh.position.clone();
+      const camTarget = targetPos.clone().add(new THREE.Vector3(4, 3, 5));
+      animateCameraTo(camTarget, targetPos.clone().add(new THREE.Vector3(0, 1.2, 0)));
+    };
+
+    function setupUI() {
+      const modal = document.getElementById('modal-settings');
+      const btnGear = document.getElementById('btn-gear');
+      const btnClose = document.getElementById('btn-close-modal');
+      const btnAudio = document.getElementById('btn-audio');
+
+      btnGear.onclick = () => modal.classList.remove('hidden');
+      btnClose.onclick = () => modal.classList.add('hidden');
+      btnAudio.onclick = toggleMusic;
+      modal.onclick = (e) => { if (e.target === modal) modal.classList.add('hidden'); };
+
+      // Load Saved Model Name
+      const savedModel = localStorage.getItem('gemini_model_name') || 'gemini-3.5-flash-lite';
+      document.getElementById('input-model-name').value = savedModel;
+
+      // Save Configuration
+      document.getElementById('btn-save-settings').onclick = () => {
+        const modelName = document.getElementById('input-model-name').value.trim() || 'gemini-3.5-flash-lite';
+        localStorage.setItem('gemini_model_name', modelName);
+        activeNPCs.forEach(npc => npc.ai.modelName = modelName);
+
+        const toast = document.getElementById('save-toast');
+        toast.classList.remove('opacity-0');
+        setTimeout(() => toast.classList.add('opacity-0'), 2500);
+      };
+
+      // Spawn NPC Button
+      document.getElementById('btn-spawn-npc').onclick = () => {
+        const role = document.getElementById('npc-new-role').value;
+        const nameInput = document.getElementById('npc-new-name');
+        const colorInput = document.getElementById('npc-new-color');
+        const keyInput = document.getElementById('npc-new-apikey');
+
+        const name = nameInput.value.trim() || (role.charAt(0).toUpperCase() + role.slice(1));
+        const color = colorInput.value;
+        const apiKey = keyInput.value.trim();
+
+        if (spawnNPC(role, name, color, apiKey)) {
+          nameInput.value = '';
+          keyInput.value = '';
+        }
+      };
+    }
+
+    function animateCameraTo(targetPos, targetLook) {
+      const startPos = camera.position.clone();
+      const startLook = controls.target.clone();
+      let progress = 0;
+
+      function step() {
+        progress += 0.04;
+        if (progress <= 1) {
+          camera.position.lerpVectors(startPos, targetPos, progress);
+          controls.target.lerpVectors(startLook, targetLook, progress);
+          controls.update();
+          requestAnimationFrame(step);
+        }
+      }
+      step();
+    }
+
+    function onWindowResize() {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+
+    const clock = new THREE.Clock();
+
+    function animate() {
+      requestAnimationFrame(animate);
+      const delta = clock.getDelta();
+      const now = performance.now();
+
+      updateSakuraPetals(delta);
+      updateNPCs(delta, now);
+
+      controls.update();
+      enforceRigidCameraBounds(); // 1. Rigid Wall Collision for Camera
+
+      renderer.render(scene, camera);
+    }
+
+    window.onload = () => {
+      initScene();
+      setupUI();
+      animate();
+    };
+  </script>
+</body>
+</html>
